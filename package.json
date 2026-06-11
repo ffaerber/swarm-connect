@@ -3,6 +3,29 @@
   "version": "0.1.0",
   "description": "React connect-button wizard for Ethereum Swarm on Gnosis chain",
   "type": "module",
+  "license": "MIT",
+  "author": "Felix Faerber",
+  "homepage": "https://github.com/ffaerber/swarm-connect#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ffaerber/swarm-connect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ffaerber/swarm-connect/issues"
+  },
+  "keywords": [
+    "swarm",
+    "ethswarm",
+    "bee",
+    "gnosis",
+    "ethereum",
+    "wagmi",
+    "react",
+    "web3",
+    "wallet",
+    "connect-button",
+    "postage-stamp"
+  ],
   "main": "./dist/swarm-connect.umd.cjs",
   "module": "./dist/swarm-connect.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +39,8 @@
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationDir dist",
     "dev": "vite",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
