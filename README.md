@@ -1,12 +1,19 @@
 # swarm-connect
 
+[![npm version](https://img.shields.io/npm/v/@ffaerber/swarm-connect.svg)](https://www.npmjs.com/package/@ffaerber/swarm-connect)
+[![npm downloads](https://img.shields.io/npm/dm/@ffaerber/swarm-connect.svg)](https://www.npmjs.com/package/@ffaerber/swarm-connect)
+[![license](https://img.shields.io/npm/l/@ffaerber/swarm-connect.svg)](./LICENSE)
+
 A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/) on the [Gnosis](https://www.gnosis.io/) chain. Drop in a single `<SwarmConnectButton />` and let users connect their wallet, verify a running Bee node, and pick a postage stamp — all from one modal.
+
+📦 **npm:** [`@ffaerber/swarm-connect`](https://www.npmjs.com/package/@ffaerber/swarm-connect)
 
 ## Features
 
 - 🐝 **Bee node detection** — checks a Bee node's `/health` endpoint and surfaces its version.
-- 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`).
+- 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`); the chosen URL is persisted in `localStorage`.
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
+- 🪜 **Gated sequential flow** — a running Bee node and a selected postage stamp are required before the wallet step unlocks.
 - 🦊 **Wallet connect** — injected-wallet connection via [wagmi](https://wagmi.sh/), pinned to Gnosis chain (ID `100`).
 - ✅ **At-a-glance status** — the button shows status dots for node, stamp, wallet, and network.
 - 🧩 **Headless hooks** — use the `useSwarmConnect` / `useBeeNode` / `usePostageStamps` hooks to build your own UI.
@@ -65,7 +72,7 @@ Provides the wagmi and React Query context. Configured for the Gnosis chain with
 
 ### `<SwarmConnectButton>`
 
-The connect button. Opens a two-tab modal (**Swarm** for the Bee node + postage stamp, **Wallet** for connecting your wallet).
+The connect button. Opens a modal with three sequential, gated steps — **1.** Bee node, **2.** postage stamp, **3.** wallet — where each step unlocks only once the previous one is satisfied.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -127,7 +134,7 @@ interface SwarmConnectConfig {
 }
 ```
 
-`beeApiUrl` is only the **initial** value. Users can edit the node URL from the modal's Swarm tab (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address. This is useful when the Bee node runs on a non-default host or port.
+`beeApiUrl` is only the **initial** value. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
 
 "Fully connected" requires all of the following:
 
