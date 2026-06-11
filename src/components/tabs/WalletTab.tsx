@@ -1,37 +1,26 @@
 import { useConnect, useDisconnect, useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { gnosis } from 'wagmi/chains'
 import { GNOSIS_CHAIN_ID, STYLES } from '../../constants'
+import { StepLabel } from '../StepLabel'
 
-export function WalletTab() {
+export function WalletSection({ swarmReady }: { swarmReady: boolean }) {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const isOnGnosis = chainId === GNOSIS_CHAIN_ID
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <section>
-        <SectionLabel>Wallet</SectionLabel>
-        {isConnected ? <ConnectedWallet address={address} /> : <WalletConnectors />}
-      </section>
+    <section style={{ opacity: swarmReady ? 1 : 0.5 }}>
+      <StepLabel step={3} done={isConnected && isOnGnosis}>Wallet</StepLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {isConnected
+          ? <ConnectedWallet address={address} />
+          : swarmReady
+            ? <WalletConnectors />
+            : <SwarmRequiredNotice />}
 
-      {isConnected && (
-        <section>
-          <SectionLabel>Network</SectionLabel>
-          <NetworkCard isOnGnosis={isOnGnosis} chainId={chainId} />
-        </section>
-      )}
-    </div>
-  )
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <div style={{
-      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-      letterSpacing: '0.06em', color: STYLES.colors.muted, marginBottom: 8,
-    }}>
-      {children}
-    </div>
+        {isConnected && <NetworkCard isOnGnosis={isOnGnosis} chainId={chainId} />}
+      </div>
+    </section>
   )
 }
 
@@ -62,6 +51,22 @@ function ConnectedWallet({ address }: { address?: string }) {
       >
         Disconnect
       </button>
+    </div>
+  )
+}
+
+function SwarmRequiredNotice() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '11px 14px',
+      border: `1px dashed ${STYLES.colors.border}`, borderRadius: 8,
+      background: '#fafafa',
+    }}>
+      <span style={{ fontSize: 13 }}>🔒</span>
+      <span style={{ fontSize: 13, color: STYLES.colors.muted }}>
+        Complete steps 1 and 2 — a running Bee node and a selected postage stamp — to connect your wallet.
+      </span>
     </div>
   )
 }

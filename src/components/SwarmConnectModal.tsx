@@ -1,10 +1,7 @@
-import { useState } from 'react'
 import { STYLES } from '../constants'
 import type { BeeNodeStatus, PostageStampsState } from '../types'
-import { SwarmTab } from './tabs/SwarmTab'
-import { WalletTab } from './tabs/WalletTab'
-
-type TabId = 'swarm' | 'wallet'
+import { SwarmSection } from './tabs/SwarmTab'
+import { WalletSection } from './tabs/WalletTab'
 
 interface SwarmConnectModalProps {
   onClose: () => void
@@ -15,7 +12,7 @@ interface SwarmConnectModalProps {
 }
 
 export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl }: SwarmConnectModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('swarm')
+  const swarmReady = beeNode.isRunning && !!stamps.selectedStampId
 
   return (
     <>
@@ -73,38 +70,18 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeA
           </button>
         </div>
 
-        {/* Tab bar */}
+        {/* Sequential setup — Bee node → postage stamp → wallet */}
         <div style={{
-          display: 'flex', margin: '14px 20px 0',
-          borderBottom: `1px solid ${STYLES.colors.border}`,
+          padding: '20px', marginTop: 6, minHeight: 260, maxHeight: '64vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 28,
         }}>
-          {(['swarm', 'wallet'] as TabId[]).map(tab => {
-            const active = activeTab === tab
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  padding: '8px 18px 10px',
-                  fontSize: 14, fontWeight: active ? 600 : 400,
-                  color: active ? STYLES.colors.primary : STYLES.colors.muted,
-                  borderBottom: `2px solid ${active ? STYLES.colors.primary : 'transparent'}`,
-                  marginBottom: -1, transition: 'all 0.15s',
-                }}
-              >
-                {tab === 'swarm' ? '🐝 Swarm' : '🦊 Wallet'}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Tab content */}
-        <div style={{ padding: '20px', minHeight: 260, maxHeight: '60vh', overflowY: 'auto' }}>
-          {activeTab === 'swarm' && (
-            <SwarmTab beeApiUrl={beeApiUrl} setBeeApiUrl={setBeeApiUrl} beeNode={beeNode} stamps={stamps} />
-          )}
-          {activeTab === 'wallet' && <WalletTab />}
+          <SwarmSection
+            beeApiUrl={beeApiUrl}
+            setBeeApiUrl={setBeeApiUrl}
+            beeNode={beeNode}
+            stamps={stamps}
+          />
+          <WalletSection swarmReady={swarmReady} />
         </div>
       </div>
     </>

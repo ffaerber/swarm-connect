@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { STYLES } from '../../constants'
+import { StepLabel } from '../StepLabel'
 import type { BeeNodeStatus, PostageStamp, PostageStampsState } from '../../types'
 
-interface SwarmTabProps {
+interface SwarmSectionProps {
   beeApiUrl: string
   setBeeApiUrl: (url: string) => void
   beeNode: BeeNodeStatus & { check: () => void }
   stamps: PostageStampsState
 }
 
-export function SwarmTab({ beeApiUrl, setBeeApiUrl, beeNode, stamps }: SwarmTabProps) {
+export function SwarmSection({ beeApiUrl, setBeeApiUrl, beeNode, stamps }: SwarmSectionProps) {
   // Re-check whenever the URL changes (incl. initial mount). beeNode.check is
   // rebound to the current URL, so depending on beeApiUrl re-runs it.
   useEffect(() => {
@@ -21,9 +22,9 @@ export function SwarmTab({ beeApiUrl, setBeeApiUrl, beeNode, stamps }: SwarmTabP
   }, [beeNode.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <>
       <section>
-        <SectionLabel>Bee Node</SectionLabel>
+        <StepLabel step={1} done={beeNode.isRunning}>Bee Node</StepLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <NodeUrlInput
             value={beeApiUrl}
@@ -34,13 +35,13 @@ export function SwarmTab({ beeApiUrl, setBeeApiUrl, beeNode, stamps }: SwarmTabP
         </div>
       </section>
 
-      {beeNode.isRunning && (
-        <section>
-          <SectionLabel>Postage Stamp</SectionLabel>
-          <StampSelector stamps={stamps} />
-        </section>
-      )}
-    </div>
+      <section style={{ opacity: beeNode.isRunning ? 1 : 0.5 }}>
+        <StepLabel step={2} done={!!stamps.selectedStampId}>Postage Stamp</StepLabel>
+        {beeNode.isRunning
+          ? <StampSelector stamps={stamps} />
+          : <LockedNotice>Connect a running Bee node to load postage stamps.</LockedNotice>}
+      </section>
+    </>
   )
 }
 
@@ -90,13 +91,14 @@ function NodeUrlInput({ value, disabled, onSubmit }: { value: string; disabled: 
   )
 }
 
-function SectionLabel({ children }: { children: string }) {
+function LockedNotice({ children }: { children: string }) {
   return (
     <div style={{
-      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-      letterSpacing: '0.06em', color: STYLES.colors.muted, marginBottom: 8,
+      ...row, color: STYLES.colors.muted, fontSize: 13,
+      borderStyle: 'dashed', background: '#fafafa',
     }}>
-      {children}
+      <span style={{ fontSize: 13 }}>🔒</span>
+      <span>{children}</span>
     </div>
   )
 }
