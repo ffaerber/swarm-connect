@@ -1,0 +1,37 @@
+# Run the demo app with:  docker compose watch
+#
+# The Vite dev server is served at http://localhost:5173. `watch` syncs your
+# local edits into the running container; changing dependencies rebuilds it.
+#
+# The browser-side fetch to the Bee node uses the URL from the modal
+# (default http://localhost:1633), which resolves on YOUR host machine — the
+# container does not need to reach the Bee node itself.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Host port is overridable: `SWARM_DEMO_PORT=5180 docker compose watch`
+    # (default 5173 may already be taken by another local dev server).
+    ports:
+      - "${SWARM_DEMO_PORT:-5173}:5173"
+    develop:
+      watch:
+        # Sync source edits into the container; Vite (polling) picks them up.
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./example
+          target: /app/example
+        - action: sync
+          path: ./index.html
+          target: /app/index.html
+        - action: sync
+          path: ./vite.config.ts
+          target: /app/vite.config.ts
+        # Rebuild the image when dependencies or build config change.
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json

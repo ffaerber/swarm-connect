@@ -8,6 +8,11 @@ export default defineConfig({
     react(),
     dts({ include: ['src'], outDir: 'dist', insertTypesEntry: true }),
   ],
+  // Fall back to polling when the system inotify watch limit is exhausted
+  // (dev server otherwise crashes with ENOSPC). Enabled by `npm run dev:poll`.
+  server: process.env.VITE_USE_POLLING
+    ? { watch: { usePolling: true, interval: 300 } }
+    : undefined,
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),

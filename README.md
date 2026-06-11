@@ -147,10 +147,24 @@ interface SwarmConnectConfig {
 
 ```bash
 npm install
-npm run dev          # start Vite dev server
+npm run dev          # start the demo app (example/) on the Vite dev server
 npm run type-check   # type-check without emitting
 npm run build        # build the library + type declarations to dist/
 ```
+
+### Demo app
+
+`npm run dev` serves a small playground in [`example/`](./example) for testing sign-in end to end. It renders the connect button and, once you're fully connected, shows the live state — wallet address, chain, Bee node URL + version, the node's overlay (Bee) address, and the selected postage stamp. Point it at a running Bee node (defaults to `http://localhost:1633`, editable in the modal).
+
+**`ENOSPC: System limit for number of file watchers reached`?** Your machine's inotify watch limit is exhausted. Either:
+
+- **Quick fix** — run the dev server in polling mode: `npm run dev:poll`.
+- **Permanent fix** — raise the system limit:
+
+  ```bash
+  echo 'fs.inotify.max_user_watches=524288' | sudo tee /etc/sysctl.d/99-inotify.conf
+  sudo sysctl -p /etc/sysctl.d/99-inotify.conf
+  ```
 
 The library is built with Vite in library mode and ships ESM (`swarm-connect.js`), CommonJS (`swarm-connect.umd.cjs`), and TypeScript declarations. `react`, `react-dom`, `wagmi`, `viem`, and `@tanstack/react-query` are externalized.
 

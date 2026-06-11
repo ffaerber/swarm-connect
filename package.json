@@ -39,6 +39,7 @@
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationDir dist",
     "dev": "vite",
+    "dev:poll": "VITE_USE_POLLING=true vite",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
