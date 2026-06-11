@@ -14,7 +14,7 @@ A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/
 ## Installation
 
 ```bash
-npm install swarm-connect
+npm install @ffaerber/swarm-connect
 ```
 
 ### Peer dependencies
@@ -38,7 +38,7 @@ npm install react react-dom wagmi viem @tanstack/react-query
 Wrap your app in `SwarmConnectProvider` and drop in the button:
 
 ```tsx
-import { SwarmConnectProvider, SwarmConnectButton } from 'swarm-connect'
+import { SwarmConnectProvider, SwarmConnectButton } from '@ffaerber/swarm-connect'
 
 export function App() {
   return (
@@ -82,7 +82,7 @@ The modal rendered by `SwarmConnectButton`. Exported for advanced use if you wan
 The top-level hook combining node, stamp, wallet, and network state.
 
 ```tsx
-import { useSwarmConnect } from 'swarm-connect'
+import { useSwarmConnect } from '@ffaerber/swarm-connect'
 
 function Status() {
   const {
