@@ -1,6 +1,13 @@
 export { SwarmConnectButton } from './components/SwarmConnectButton'
-export { SwarmConnectWizard } from './components/SwarmConnectWizard'
+export { SwarmConnectModal } from './components/SwarmConnectModal'
 export { SwarmConnectProvider } from './context/SwarmConnectProvider'
 export { useSwarmConnect } from './hooks/useSwarmConnect'
 export { useBeeNode } from './hooks/useBeeNode'
-export type { SwarmConnectConfig, SwarmConnectState, BeeNodeStatus, WizardStep } from './types'
+export { usePostageStamps } from './hooks/usePostageStamps'
+export type {
+  SwarmConnectConfig,
+  SwarmConnectState,
+  BeeNodeStatus,
+  PostageStamp,
+  PostageStampsState,
+} from './types'

@@ -1,0 +1,206 @@
+import { useEffect } from 'react'
+import { STYLES } from '../../constants'
+import type { BeeNodeStatus, PostageStamp, PostageStampsState } from '../../types'
+
+interface SwarmTabProps {
+  beeApiUrl: string
+  beeNode: BeeNodeStatus & { check: () => void }
+  stamps: PostageStampsState
+}
+
+export function SwarmTab({ beeApiUrl, beeNode, stamps }: SwarmTabProps) {
+  useEffect(() => {
+    beeNode.check()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (beeNode.isRunning) stamps.fetchStamps()
+  }, [beeNode.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <section>
+        <SectionLabel>Bee Node</SectionLabel>
+        <BeeNodeCard beeApiUrl={beeApiUrl} status={beeNode} onRetry={beeNode.check} />
+      </section>
+
+      {beeNode.isRunning && (
+        <section>
+          <SectionLabel>Postage Stamp</SectionLabel>
+          <StampSelector stamps={stamps} />
+        </section>
+      )}
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+      letterSpacing: '0.06em', color: STYLES.colors.muted, marginBottom: 8,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function BeeNodeCard({ beeApiUrl, status, onRetry }: { beeApiUrl: string; status: BeeNodeStatus; onRetry: () => void }) {
+  if (status.isChecking) {
+    return (
+      <div style={row}>
+        <Spinner />
+        <span style={{ color: STYLES.colors.muted, fontSize: 14 }}>Checking {beeApiUrl}…</span>
+      </div>
+    )
+  }
+
+  if (status.isRunning) {
+    return (
+      <div style={{ ...row, borderColor: STYLES.colors.success, background: STYLES.colors.successLight }}>
+        <Dot color={STYLES.colors.success} />
+        <div>
+          <div style={{ fontWeight: 600, color: STYLES.colors.success, fontSize: 14 }}>Node running</div>
+          {status.version && <div style={{ color: STYLES.colors.muted, fontSize: 12 }}>v{status.version}</div>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ ...row, borderColor: STYLES.colors.error, background: STYLES.colors.errorLight }}>
+        <Dot color={STYLES.colors.error} />
+        <div>
+          <div style={{ fontWeight: 600, color: STYLES.colors.error, fontSize: 14 }}>Node not reachable</div>
+          <div style={{ color: STYLES.colors.muted, fontSize: 12 }}>
+            {status.error ?? `Cannot reach ${beeApiUrl}`}
+          </div>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: STYLES.colors.muted }}>
+        Start: <code style={{ background: '#f3f4f6', padding: '1px 5px', borderRadius: 3 }}>bee start</code>
+      </div>
+      <button onClick={onRetry} style={ghostBtn}>Retry</button>
+    </div>
+  )
+}
+
+function StampSelector({ stamps }: { stamps: PostageStampsState }) {
+  if (stamps.isLoading) {
+    return (
+      <div style={{ ...row, gap: 10 }}>
+        <Spinner />
+        <span style={{ color: STYLES.colors.muted, fontSize: 14 }}>Loading stamps…</span>
+      </div>
+    )
+  }
+
+  if (stamps.error) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ ...row, borderColor: STYLES.colors.error, background: STYLES.colors.errorLight }}>
+          <span style={{ color: STYLES.colors.error, fontSize: 13 }}>{stamps.error}</span>
+        </div>
+        <button onClick={stamps.fetchStamps} style={ghostBtn}>Retry</button>
+      </div>
+    )
+  }
+
+  if (stamps.stamps.length === 0) {
+    return (
+      <div style={{ ...row, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+        <div style={{ fontSize: 14, color: STYLES.colors.muted }}>No postage stamps found.</div>
+        <div style={{ fontSize: 12, color: STYLES.colors.muted }}>
+          Buy a stamp via the Bee API or Swarm Desktop to continue.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {stamps.stamps.map(stamp => (
+        <StampCard
+          key={stamp.batchID}
+          stamp={stamp}
+          selected={stamps.selectedStampId === stamp.batchID}
+          onSelect={() => stamps.selectStamp(stamp.batchID)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function StampCard({ stamp, selected, onSelect }: { stamp: PostageStamp; selected: boolean; onSelect: () => void }) {
+  const ttlDays = Math.floor(stamp.batchTTL / 86400)
+  const shortId = `${stamp.batchID.slice(0, 8)}…${stamp.batchID.slice(-6)}`
+
+  return (
+    <button
+      onClick={onSelect}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px',
+        border: `1.5px solid ${selected ? STYLES.colors.primary : STYLES.colors.border}`,
+        borderRadius: 8, cursor: 'pointer',
+        background: selected ? '#eff6ff' : '#fff',
+        textAlign: 'left', width: '100%', transition: 'all 0.15s',
+      }}
+    >
+      <div>
+        <div style={{ fontFamily: 'monospace', fontSize: 12, color: STYLES.colors.text }}>{shortId}</div>
+        {stamp.label && (
+          <div style={{ fontSize: 12, color: STYLES.colors.muted, marginTop: 2 }}>{stamp.label}</div>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: STYLES.colors.muted }}>
+          {ttlDays > 0 ? `${ttlDays}d` : 'expiring'}
+        </span>
+        {stamp.usable
+          ? <Badge bg={STYLES.colors.successLight} color={STYLES.colors.success}>usable</Badge>
+          : <Badge bg={STYLES.colors.errorLight} color={STYLES.colors.error}>unusable</Badge>}
+        <div style={{
+          width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+          border: `2px solid ${selected ? STYLES.colors.primary : STYLES.colors.border}`,
+          background: selected ? STYLES.colors.primary : 'transparent',
+        }} />
+      </div>
+    </button>
+  )
+}
+
+function Badge({ children, bg, color }: { children: string; bg: string; color: string }) {
+  return (
+    <span style={{ fontSize: 11, background: bg, color, borderRadius: 4, padding: '2px 6px' }}>
+      {children}
+    </span>
+  )
+}
+
+function Dot({ color }: { color: string }) {
+  return <span style={{ fontSize: 10, color, lineHeight: 1 }}>●</span>
+}
+
+function Spinner() {
+  return (
+    <div style={{
+      width: 15, height: 15, flexShrink: 0,
+      border: '2px solid #e5e7eb', borderTopColor: STYLES.colors.primary,
+      borderRadius: '50%', animation: 'spin 0.7s linear infinite',
+    }} />
+  )
+}
+
+const row = {
+  display: 'flex', alignItems: 'center', gap: 12,
+  padding: '11px 14px', border: `1px solid ${STYLES.colors.border}`,
+  borderRadius: 8, background: '#fff',
+} as const
+
+const ghostBtn = {
+  background: 'none', border: `1px solid ${STYLES.colors.border}`,
+  borderRadius: 6, padding: '5px 14px', cursor: 'pointer',
+  fontSize: 13, color: STYLES.colors.muted, alignSelf: 'flex-start' as const,
+} as const

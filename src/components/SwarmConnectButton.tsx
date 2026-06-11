@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSwarmConnect } from '../hooks/useSwarmConnect'
-import { SwarmConnectWizard } from './SwarmConnectWizard'
+import { SwarmConnectModal } from './SwarmConnectModal'
 import { STYLES, DEFAULT_BEE_API_URL } from '../constants'
 import type { SwarmConnectConfig } from '../types'
 
@@ -10,14 +10,12 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
 
 export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: SwarmConnectButtonProps) {
   const [open, setOpen] = useState(false)
-  const { beeNode, isWalletConnected, address, isOnGnosis, isFullyConnected, checkBeeNode } = useSwarmConnect({ beeApiUrl })
+  const { beeNode, stamps, isWalletConnected, address, isOnGnosis, isFullyConnected } = useSwarmConnect({ beeApiUrl })
 
-  function statusDot(ok: boolean, checking = false) {
-    const color = checking ? STYLES.colors.warning : ok ? STYLES.colors.success : STYLES.colors.error
-    return <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color }} />
-  }
-
-  const buttonLabel = label ?? (isFullyConnected ? shortAddress(address) ?? 'Connected' : 'Connect to Swarm')
+  const displayLabel = label
+    ?? (isFullyConnected
+      ? (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'Connected')
+      : 'Connect to Swarm')
 
   return (
     <>
@@ -27,30 +25,32 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
           display: 'inline-flex', alignItems: 'center', gap: 8,
           background: isFullyConnected ? STYLES.colors.successLight : STYLES.colors.primary,
           color: isFullyConnected ? STYLES.colors.success : '#fff',
-          border: isFullyConnected ? `1px solid ${STYLES.colors.success}` : 'none',
+          border: isFullyConnected ? `1.5px solid ${STYLES.colors.success}` : 'none',
           borderRadius: 8, padding: '10px 18px',
           cursor: 'pointer', fontSize: 15, fontWeight: 600,
           boxShadow: isFullyConnected ? 'none' : '0 2px 8px rgba(26,86,219,0.25)',
           transition: 'all 0.15s',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
         onMouseOver={e => { if (!isFullyConnected) e.currentTarget.style.background = STYLES.colors.primaryHover }}
-        onMouseOut={e => { if (!isFullyConnected) e.currentTarget.style.background = STYLES.colors.primary }}
+        onMouseOut={e => { e.currentTarget.style.background = isFullyConnected ? STYLES.colors.successLight : STYLES.colors.primary }}
       >
         {!isFullyConnected && (
-          <span style={{ display: 'flex', gap: 4 }}>
-            {statusDot(beeNode.isRunning, beeNode.isChecking)}
-            {statusDot(isWalletConnected)}
-            {statusDot(isOnGnosis)}
+          <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <StatusDot ok={beeNode.isRunning} checking={beeNode.isChecking} />
+            <StatusDot ok={!!stamps.selectedStampId} />
+            <StatusDot ok={isWalletConnected} />
+            <StatusDot ok={isOnGnosis} />
           </span>
         )}
-        {buttonLabel}
+        {displayLabel}
       </button>
 
       {open && (
-        <SwarmConnectWizard
+        <SwarmConnectModal
           onClose={() => setOpen(false)}
-          beeNodeStatus={beeNode}
-          onCheckBeeNode={checkBeeNode}
+          beeNode={beeNode}
+          stamps={stamps}
           beeApiUrl={beeApiUrl}
         />
       )}
@@ -58,7 +58,14 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
   )
 }
 
-function shortAddress(addr?: string) {
-  if (!addr) return undefined
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+function StatusDot({ ok, checking }: { ok: boolean; checking?: boolean }) {
+  const color = checking
+    ? STYLES.colors.warning
+    : ok ? STYLES.colors.success : STYLES.colors.error
+  return (
+    <span style={{
+      display: 'inline-block', width: 7, height: 7,
+      borderRadius: '50%', background: color,
+    }} />
+  )
 }
