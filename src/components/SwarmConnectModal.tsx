@@ -11,9 +11,10 @@ interface SwarmConnectModalProps {
   beeNode: BeeNodeStatus & { check: () => void }
   stamps: PostageStampsState
   beeApiUrl: string
+  setBeeApiUrl: (url: string) => void
 }
 
-export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl }: SwarmConnectModalProps) {
+export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl }: SwarmConnectModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('swarm')
 
   return (
@@ -101,7 +102,7 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl }: Swarm
         {/* Tab content */}
         <div style={{ padding: '20px', minHeight: 260, maxHeight: '60vh', overflowY: 'auto' }}>
           {activeTab === 'swarm' && (
-            <SwarmTab beeApiUrl={beeApiUrl} beeNode={beeNode} stamps={stamps} />
+            <SwarmTab beeApiUrl={beeApiUrl} setBeeApiUrl={setBeeApiUrl} beeNode={beeNode} stamps={stamps} />
           )}
           {activeTab === 'wallet' && <WalletTab />}
         </div>

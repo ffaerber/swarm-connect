@@ -10,7 +10,10 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
 
 export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: SwarmConnectButtonProps) {
   const [open, setOpen] = useState(false)
-  const { beeNode, stamps, isWalletConnected, address, isOnGnosis, isFullyConnected } = useSwarmConnect({ beeApiUrl })
+  const {
+    beeNode, stamps, beeApiUrl: currentBeeApiUrl, setBeeApiUrl,
+    isWalletConnected, address, isOnGnosis, isFullyConnected,
+  } = useSwarmConnect({ beeApiUrl })
 
   const displayLabel = label
     ?? (isFullyConnected
@@ -51,7 +54,8 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
           onClose={() => setOpen(false)}
           beeNode={beeNode}
           stamps={stamps}
-          beeApiUrl={beeApiUrl}
+          beeApiUrl={currentBeeApiUrl}
+          setBeeApiUrl={setBeeApiUrl}
         />
       )}
     </>

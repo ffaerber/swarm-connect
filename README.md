@@ -5,6 +5,7 @@ A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/
 ## Features
 
 - 🐝 **Bee node detection** — checks a Bee node's `/health` endpoint and surfaces its version.
+- 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`).
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
 - 🦊 **Wallet connect** — injected-wallet connection via [wagmi](https://wagmi.sh/), pinned to Gnosis chain (ID `100`).
 - ✅ **At-a-glance status** — the button shows status dots for node, stamp, wallet, and network.
@@ -88,6 +89,8 @@ function Status() {
   const {
     beeNode,          // { isRunning, isChecking, version?, error?, check() }
     stamps,           // { stamps, isLoading, error?, fetchStamps(), selectedStampId?, selectStamp() }
+    beeApiUrl,        // current Bee node URL
+    setBeeApiUrl,     // change the Bee node URL at runtime, then re-check
     isWalletConnected,
     address,
     isOnGnosis,
@@ -120,9 +123,11 @@ const { stamps, isLoading, error, fetchStamps, selectedStampId, selectStamp } =
 
 ```ts
 interface SwarmConnectConfig {
-  beeApiUrl?: string // defaults to http://localhost:1633
+  beeApiUrl?: string // initial Bee node URL; defaults to http://localhost:1633
 }
 ```
+
+`beeApiUrl` is only the **initial** value. Users can edit the node URL from the modal's Swarm tab (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address. This is useful when the Bee node runs on a non-default host or port.
 
 "Fully connected" requires all of the following:
 

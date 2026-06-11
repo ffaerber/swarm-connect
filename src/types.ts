@@ -35,6 +35,8 @@ export interface PostageStampsState {
 export interface SwarmConnectState {
   beeNode: BeeNodeStatus & { check: () => void }
   stamps: PostageStampsState
+  beeApiUrl: string
+  setBeeApiUrl: (url: string) => void
   isWalletConnected: boolean
   address?: string
   isOnGnosis: boolean

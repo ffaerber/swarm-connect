@@ -1,17 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { STYLES } from '../../constants'
 import type { BeeNodeStatus, PostageStamp, PostageStampsState } from '../../types'
 
 interface SwarmTabProps {
   beeApiUrl: string
+  setBeeApiUrl: (url: string) => void
   beeNode: BeeNodeStatus & { check: () => void }
   stamps: PostageStampsState
 }
 
-export function SwarmTab({ beeApiUrl, beeNode, stamps }: SwarmTabProps) {
+export function SwarmTab({ beeApiUrl, setBeeApiUrl, beeNode, stamps }: SwarmTabProps) {
+  // Re-check whenever the URL changes (incl. initial mount). beeNode.check is
+  // rebound to the current URL, so depending on beeApiUrl re-runs it.
   useEffect(() => {
     beeNode.check()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beeApiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (beeNode.isRunning) stamps.fetchStamps()
@@ -21,7 +24,14 @@ export function SwarmTab({ beeApiUrl, beeNode, stamps }: SwarmTabProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <section>
         <SectionLabel>Bee Node</SectionLabel>
-        <BeeNodeCard beeApiUrl={beeApiUrl} status={beeNode} onRetry={beeNode.check} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <NodeUrlInput
+            value={beeApiUrl}
+            disabled={beeNode.isChecking}
+            onSubmit={setBeeApiUrl}
+          />
+          <BeeNodeCard beeApiUrl={beeApiUrl} status={beeNode} onRetry={beeNode.check} />
+        </div>
       </section>
 
       {beeNode.isRunning && (
@@ -30,6 +40,52 @@ export function SwarmTab({ beeApiUrl, beeNode, stamps }: SwarmTabProps) {
           <StampSelector stamps={stamps} />
         </section>
       )}
+    </div>
+  )
+}
+
+function NodeUrlInput({ value, disabled, onSubmit }: { value: string; disabled: boolean; onSubmit: (url: string) => void }) {
+  const [draft, setDraft] = useState(value)
+
+  // Keep the field in sync if the URL is changed elsewhere.
+  useEffect(() => { setDraft(value) }, [value])
+
+  const trimmed = draft.trim().replace(/\/+$/, '')
+  const dirty = trimmed !== value && trimmed.length > 0
+  const commit = () => { if (dirty) onSubmit(trimmed) }
+
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <input
+        type="url"
+        value={draft}
+        disabled={disabled}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') commit() }}
+        placeholder="http://localhost:1633"
+        spellCheck={false}
+        autoComplete="off"
+        style={{
+          flex: 1, minWidth: 0,
+          padding: '8px 10px', fontSize: 13,
+          fontFamily: 'monospace',
+          border: `1px solid ${STYLES.colors.border}`,
+          borderRadius: 6, color: STYLES.colors.text,
+          outline: 'none', background: disabled ? '#f9fafb' : '#fff',
+        }}
+      />
+      <button
+        onClick={commit}
+        disabled={disabled || !dirty}
+        style={{
+          ...ghostBtn,
+          alignSelf: 'auto',
+          cursor: disabled || !dirty ? 'default' : 'pointer',
+          opacity: disabled || !dirty ? 0.5 : 1,
+        }}
+      >
+        Connect
+      </button>
     </div>
   )
 }
