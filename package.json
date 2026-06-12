@@ -1,6 +1,6 @@
 {
   "name": "@ffaerber/swarm-connect",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "React connect-button wizard for Ethereum Swarm on Gnosis chain",
   "type": "module",
   "license": "MIT",
@@ -35,7 +35,9 @@
       "require": "./dist/swarm-connect.umd.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationDir dist",
     "dev": "vite",

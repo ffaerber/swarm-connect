@@ -1,10 +1,16 @@
 name: Publish to npm
 
-# Publishes the package when you create a GitHub Release.
-# Create a release (UI or `gh release create vX.Y.Z`) and this builds + publishes.
+# Publishes the package when you create a GitHub Release or push a vX.Y.Z tag.
+# Create a release (UI or `gh release create vX.Y.Z`) or `git push origin vX.Y.Z`
+# and this builds + publishes. (npm rejects re-publishing an existing version,
+# so a release created later from an already-published tag just fails the
+# publish step harmlessly.)
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   publish:
