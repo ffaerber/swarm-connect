@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAccount, useChainId, useBalance } from 'wagmi'
 import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
+import { useNodeWallet } from './useNodeWallet'
 import { GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY } from '../constants'
 import type { SwarmConnectConfig, SwarmConnectState } from '../types'
 
@@ -28,8 +29,10 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     }
   }, [beeApiUrl])
 
+  const stampMode = config.stampMode ?? 'select'
   const beeNode = useBeeNode(beeApiUrl)
   const stamps = usePostageStamps(beeApiUrl)
+  const nodeWallet = useNodeWallet(beeApiUrl)
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
 
@@ -49,12 +52,16 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     stamps,
     beeApiUrl,
     setBeeApiUrl,
+    stampMode,
+    nodeWallet,
     isWalletConnected: isConnected,
     address,
     isOnGnosis,
     chainId,
     balance,
     isFullyConnected:
-      beeNode.isRunning && !!stamps.selectedStampId && isConnected && isOnGnosis && hasGas,
+      isConnected && isOnGnosis && hasGas && beeNode.isRunning &&
+      (stampMode === 'select' || nodeWallet.isFunded) &&
+      !!stamps.selectedStampId,
   }
 }

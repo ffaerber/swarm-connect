@@ -10,9 +10,9 @@ import { useSwarmConnect, SwarmConnectModal } from '../src'
  */
 export function App() {
   const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect()
+  const swarm = useSwarmConnect({ stampMode: 'create' })
   const { disconnect } = useDisconnect()
-  const { beeNode, stamps, beeApiUrl, isWalletConnected, address, isOnGnosis, chainId, balance, isFullyConnected } = swarm
+  const { beeNode, stamps, nodeWallet, beeApiUrl, isWalletConnected, address, isOnGnosis, chainId, balance, isFullyConnected } = swarm
   const beeOverlay = useBeeOverlay(beeApiUrl, beeNode.isRunning)
   const selectedStamp = stamps.stamps.find(s => s.batchID === stamps.selectedStampId)
 
@@ -32,7 +32,7 @@ export function App() {
             </h1>
           </div>
           <p style={{ color: 'var(--fg-muted)', margin: '0 0 22px', fontSize: 14, lineHeight: 1.5 }}>
-            Click the button, complete the five gated steps, then watch the live connection state below.
+            Click the button, complete the six gated steps (stamp-create mode), then watch the live connection state below.
           </p>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
@@ -49,6 +49,10 @@ export function App() {
               <Row label="Bee node URL" mono>{beeApiUrl}</Row>
               <Row label="Bee version">{beeNode.version ?? '—'}</Row>
               <Row label="Bee overlay" mono>{beeOverlay ?? 'loading…'}</Row>
+              <Row label="Node wallet" mono>{nodeWallet.address ?? '—'}</Row>
+              <Row label="Node xDAI / xBZZ" mono>
+                {nodeWallet.xdai !== undefined ? nodeWallet.xdai.toFixed(4) : '—'} / {nodeWallet.xbzz !== undefined ? nodeWallet.xbzz.toFixed(4) : '—'}
+              </Row>
               <Row label="Postage stamp" mono>{selectedStamp?.batchID ?? stamps.selectedStampId ?? '—'}</Row>
               <Row label="Stamp label">{selectedStamp?.label || '—'}</Row>
               <Row label="Stamp usable">
@@ -59,11 +63,12 @@ export function App() {
             <div style={{ border: '1px dashed var(--line-2)', borderRadius: 10, padding: '14px 16px', background: 'var(--bunker)' }}>
               <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginBottom: 12 }}>Not fully connected yet — live progress:</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
-                <StepInline done={beeNode.isRunning}>Bee node</StepInline>
-                <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>
                 <StepInline done={isWalletConnected}>Wallet</StepInline>
                 <StepInline done={isOnGnosis}>Gnosis</StepInline>
                 <StepInline done={balance.hasGas}>xDAI</StepInline>
+                <StepInline done={beeNode.isRunning}>Bee node</StepInline>
+                <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>
+                <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>
               </div>
             </div>
           )}
@@ -77,6 +82,8 @@ export function App() {
           stamps={stamps}
           beeApiUrl={beeApiUrl}
           setBeeApiUrl={swarm.setBeeApiUrl}
+          stampMode={swarm.stampMode}
+          nodeWallet={nodeWallet}
         />
       )}
     </div>

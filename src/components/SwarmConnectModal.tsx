@@ -2,9 +2,10 @@ import { useEffect } from 'react'
 import { useAccount, useChainId, useBalance } from 'wagmi'
 import { GNOSIS_CHAIN_ID } from '../constants'
 import { ensureSwarmStyles } from '../theme'
-import type { BeeNodeStatus, PostageStampsState } from '../types'
-import { BeeMark, StepLabel, StepDots } from './atoms'
-import { NodeUrlInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep } from './steps'
+import { useNodeWallet } from '../hooks/useNodeWallet'
+import type { BeeNodeStatus, NodeWalletState, PostageStampsState, StampMode } from '../types'
+import { BeeMark, StepLabel, StepDots, LockedNotice } from './atoms'
+import { NodeUrlInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep, NodeWalletStep } from './steps'
 
 interface SwarmConnectModalProps {
   onClose: () => void
@@ -12,10 +13,18 @@ interface SwarmConnectModalProps {
   stamps: PostageStampsState
   beeApiUrl: string
   setBeeApiUrl: (url: string) => void
+  /** 'create' adds the node-wallet funding step and the buy-stamp form. */
+  stampMode?: StampMode
+  /** Pass the instance from useSwarmConnect to share state; created internally otherwise. */
+  nodeWallet?: NodeWalletState
 }
 
-export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl }: SwarmConnectModalProps) {
+export function SwarmConnectModal({
+  onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl,
+  stampMode = 'select', nodeWallet: nodeWalletProp,
+}: SwarmConnectModalProps) {
   ensureSwarmStyles()
+  const create = stampMode === 'create'
 
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
@@ -27,18 +36,39 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeA
   const hasGas = isOnGnosis && !!balanceData && balanceData.value > 0n
   const balance = { xdai, isLoading: isConnected && balanceLoading, hasGas }
 
-  // Probe the node on open / URL change, then load stamps once it's online.
+  // Hooks must be unconditional — fall back to a local instance when the
+  // caller doesn't share theirs (only consulted in create mode).
+  const ownNodeWallet = useNodeWallet(beeApiUrl)
+  const nodeWallet = nodeWalletProp ?? ownNodeWallet
+
+  // Probe the node on open / URL change, then load stamps (and, in create
+  // mode, the node's wallet) once it's online.
   useEffect(() => { beeNode.check() }, [beeApiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (beeNode.isRunning) stamps.fetchStamps() }, [beeNode.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!beeNode.isRunning) return
+    stamps.fetchStamps()
+    if (create) nodeWallet.refresh()
+  }, [beeNode.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const swarmReady = beeNode.isRunning && !!stamps.selectedStampId
-  const fullyConnected = swarmReady && isConnected && isOnGnosis && hasGas
-
-  const nodeState = beeNode.isRunning ? 'done' : 'active'
-  const stampState = !beeNode.isRunning ? 'locked' : stamps.selectedStampId ? 'done' : 'active'
-  const walletState = !swarmReady ? 'locked' : isConnected ? 'done' : 'active'
+  // Gated chain: wallet → network → balance → node → (node wallet) → stamp.
+  const walletState = isConnected ? 'done' : 'active'
   const networkState = !isConnected ? 'locked' : isOnGnosis ? 'done' : 'active'
   const balanceState = !isOnGnosis ? 'locked' : hasGas ? 'done' : 'active'
+  const nodeState = !hasGas ? 'locked' : beeNode.isRunning ? 'done' : 'active'
+  const nodeWalletState = nodeState !== 'done' ? 'locked' : nodeWallet.isFunded ? 'done' : 'active'
+  const stampUnlocked = create ? nodeWalletState === 'done' : nodeState === 'done'
+  const stampState = !stampUnlocked ? 'locked' : stamps.selectedStampId ? 'done' : 'active'
+
+  const stampStepNo = create ? 6 : 5
+  const fullyConnected = stampState === 'done'
+  const dotStates = [
+    isConnected, isOnGnosis, hasGas, beeNode.isRunning,
+    ...(create ? [nodeWallet.isFunded] : []),
+    !!stamps.selectedStampId,
+  ]
+  const trail = create
+    ? 'wallet · chain · gas · node · fund · stamp'
+    : 'wallet · chain · gas · node · stamp'
 
   return (
     <>
@@ -64,7 +94,7 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeA
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--fg)', lineHeight: 1.1 }}>Connect to Swarm</div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--fg-muted)', marginTop: 3 }}>
-                  // {fullyConnected ? 'ready' : 'node · stamp · wallet · chain · balance'}
+                  // {fullyConnected ? 'ready' : trail}
                 </div>
               </div>
             </div>
@@ -81,32 +111,47 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeA
         {/* body */}
         <div className="sc-scroll" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 24, maxHeight: '62vh', overflowY: 'auto' }}>
           <section style={{ animation: 'sc-step-in .3s var(--ease)' }}>
-            <StepLabel step={1} state={nodeState} hint={beeNode.isRunning ? beeNode.version : null}>Bee node</StepLabel>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <NodeUrlInput value={beeApiUrl} disabled={beeNode.isChecking} onSubmit={setBeeApiUrl} />
-              <BeeNodeStep node={beeNode} beeApiUrl={beeApiUrl} />
-            </div>
-          </section>
-
-          <section style={{ opacity: stampState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
-            <StepLabel step={2} state={stampState}
-              hint={stamps.selectedStampId ? '1 selected' : beeNode.isRunning ? `${stamps.stamps.length} found` : null}>Postage stamp</StepLabel>
-            <StampStep stamps={stamps} locked={stampState === 'locked'} />
-          </section>
-
-          <section style={{ opacity: walletState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
-            <StepLabel step={3} state={walletState} hint={isConnected ? 'linked' : null}>Wallet</StepLabel>
-            <WalletStep locked={!swarmReady} isConnected={isConnected} address={address} />
+            <StepLabel step={1} state={walletState} hint={isConnected ? 'linked' : null}>Wallet</StepLabel>
+            <WalletStep isConnected={isConnected} address={address} />
           </section>
 
           <section style={{ opacity: networkState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
-            <StepLabel step={4} state={networkState} hint={isConnected ? (isOnGnosis ? 'gnosis' : 'wrong net') : null}>Network chain</StepLabel>
-            <NetworkStep locked={!isConnected} isOnGnosis={isOnGnosis} chainId={chainId} />
+            <StepLabel step={2} state={networkState} hint={isConnected ? (isOnGnosis ? 'gnosis' : 'wrong net') : null}>Network chain</StepLabel>
+            <NetworkStep locked={networkState === 'locked'} isOnGnosis={isOnGnosis} chainId={chainId} />
           </section>
 
           <section style={{ opacity: balanceState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
-            <StepLabel step={5} state={balanceState} hint={isOnGnosis ? (hasGas ? 'funded' : 'low') : null}>Balance</StepLabel>
-            <BalanceStep locked={!isOnGnosis} balance={balance} />
+            <StepLabel step={3} state={balanceState} hint={isOnGnosis ? (hasGas ? 'funded' : 'low') : null}>Balance</StepLabel>
+            <BalanceStep locked={balanceState === 'locked'} balance={balance} />
+          </section>
+
+          <section style={{ opacity: nodeState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
+            <StepLabel step={4} state={nodeState} hint={beeNode.isRunning ? beeNode.version : null}>Bee node</StepLabel>
+            {nodeState === 'locked'
+              ? <LockedNotice>Top up xDAI gas to unlock the Bee node connection.</LockedNotice>
+              : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <NodeUrlInput value={beeApiUrl} disabled={beeNode.isChecking} onSubmit={setBeeApiUrl} />
+                  <BeeNodeStep node={beeNode} beeApiUrl={beeApiUrl} />
+                </div>
+              )}
+          </section>
+
+          {create && (
+            <section style={{ opacity: nodeWalletState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
+              <StepLabel step={5} state={nodeWalletState}
+                hint={nodeWalletState === 'locked' ? null : nodeWallet.isFunded ? 'funded' : 'top up'}>Node wallet</StepLabel>
+              <NodeWalletStep locked={nodeWalletState === 'locked'} nodeWallet={nodeWallet} />
+            </section>
+          )}
+
+          <section style={{ opacity: stampState === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
+            <StepLabel step={stampStepNo} state={stampState}
+              hint={stamps.selectedStampId ? '1 selected' : stampUnlocked ? `${stamps.stamps.length} found` : null}>Postage stamp</StepLabel>
+            <StampStep stamps={stamps} locked={stampState === 'locked'} canCreate={create}
+              lockedHint={create
+                ? 'Fund the node wallet to manage postage stamps.'
+                : 'Bring a node online to load its postage stamps.'} />
           </section>
         </div>
 
@@ -122,7 +167,7 @@ export function SwarmConnectModal({ onClose, beeNode, stamps, beeApiUrl, setBeeA
           {fullyConnected
             ? <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', color: 'var(--ok)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok)', boxShadow: '0 0 8px var(--ok)' }} />done</span>
-            : <StepDots states={[beeNode.isRunning, !!stamps.selectedStampId, isConnected, isOnGnosis, hasGas]} />}
+            : <StepDots states={dotStates} />}
         </div>
       </div>
     </>

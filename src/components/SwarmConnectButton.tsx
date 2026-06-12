@@ -9,11 +9,11 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
   label?: string
 }
 
-export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: SwarmConnectButtonProps) {
+export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, stampMode, label }: SwarmConnectButtonProps) {
   ensureSwarmStyles()
   const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect({ beeApiUrl })
-  const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, isFullyConnected, address } = swarm
+  const swarm = useSwarmConnect({ beeApiUrl, stampMode })
+  const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, nodeWallet, isFullyConnected, address } = swarm
 
   const [h, setH] = useState(false)
   const displayLabel = label
@@ -50,6 +50,8 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
           stamps={stamps}
           beeApiUrl={currentBeeApiUrl}
           setBeeApiUrl={setBeeApiUrl}
+          stampMode={swarm.stampMode}
+          nodeWallet={nodeWallet}
         />
       )}
     </>
@@ -57,13 +59,14 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
 }
 
 function ButtonDots({ swarm }: { swarm: SwarmConnectState }) {
-  const { beeNode, stamps, isWalletConnected, isOnGnosis, balance } = swarm
+  const { beeNode, stamps, nodeWallet, stampMode, isWalletConnected, isOnGnosis, balance } = swarm
   const dots: ('ok' | 'bad' | 'warn')[] = [
-    beeNode.isChecking ? 'warn' : beeNode.isRunning ? 'ok' : 'bad',
-    stamps.selectedStampId ? 'ok' : 'bad',
     isWalletConnected ? 'ok' : 'bad',
     isOnGnosis ? 'ok' : 'bad',
     balance.hasGas ? 'ok' : isOnGnosis ? 'warn' : 'bad',
+    beeNode.isChecking ? 'warn' : beeNode.isRunning ? 'ok' : 'bad',
+    ...(stampMode === 'create' ? [nodeWallet.isFunded ? 'ok' : 'bad'] as const : []),
+    stamps.selectedStampId ? 'ok' : 'bad',
   ]
   const col = { ok: 'var(--accent-ink)', bad: 'rgba(26,14,2,.32)', warn: '#7a4a00' }
   return (
