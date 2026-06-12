@@ -9,10 +9,10 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
   label?: string
 }
 
-export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, stampMode, label }: SwarmConnectButtonProps) {
+export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, requirements, label }: SwarmConnectButtonProps) {
   ensureSwarmStyles()
   const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect({ beeApiUrl, stampMode })
+  const swarm = useSwarmConnect({ beeApiUrl, requirements })
   const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, nodeWallet, isFullyConnected, address } = swarm
 
   const [h, setH] = useState(false)
@@ -50,7 +50,7 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, stampMode,
           stamps={stamps}
           beeApiUrl={currentBeeApiUrl}
           setBeeApiUrl={setBeeApiUrl}
-          stampMode={swarm.stampMode}
+          requirements={swarm.requirements}
           nodeWallet={nodeWallet}
         />
       )}
@@ -59,14 +59,14 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, stampMode,
 }
 
 function ButtonDots({ swarm }: { swarm: SwarmConnectState }) {
-  const { beeNode, stamps, nodeWallet, stampMode, isWalletConnected, isOnGnosis, balance } = swarm
+  const { beeNode, stamps, nodeWallet, requirements, isWalletConnected, isOnGnosis, balance } = swarm
   const dots: ('ok' | 'bad' | 'warn')[] = [
     isWalletConnected ? 'ok' : 'bad',
     isOnGnosis ? 'ok' : 'bad',
-    balance.hasGas ? 'ok' : isOnGnosis ? 'warn' : 'bad',
+    ...(requirements.xdai ? [balance.hasGas ? 'ok' : isOnGnosis ? 'warn' : 'bad'] as const : []),
     beeNode.isChecking ? 'warn' : beeNode.isRunning ? 'ok' : 'bad',
-    ...(stampMode === 'create' ? [nodeWallet.isFunded ? 'ok' : 'bad'] as const : []),
-    stamps.selectedStampId ? 'ok' : 'bad',
+    ...(requirements.xbzz ? [nodeWallet.isFunded ? 'ok' : 'bad'] as const : []),
+    ...(requirements.postageStamp ? [stamps.selectedStampId ? 'ok' : 'bad'] as const : []),
   ]
   const col = { ok: 'var(--accent-ink)', bad: 'rgba(26,14,2,.32)', warn: '#7a4a00' }
   return (

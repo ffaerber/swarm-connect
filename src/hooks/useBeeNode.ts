@@ -29,5 +29,10 @@ export function useBeeNode(beeApiUrl = DEFAULT_BEE_API_URL) {
     }
   }, [beeApiUrl])
 
-  return { ...status, check }
+  /** Forget the node — back to a neutral "not connected" state (no error). */
+  const disconnect = useCallback(() => {
+    setStatus({ isRunning: false, isChecking: false })
+  }, [])
+
+  return { ...status, check, disconnect }
 }

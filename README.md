@@ -15,7 +15,8 @@ A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/
 - 🐝 **Bee node detection** — checks a Bee node's `/health` endpoint and surfaces its version.
 - 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`); the chosen URL is persisted in `localStorage`.
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
-- 💸 **Stamp-create mode** (`stampMode: 'create'`) — for dApps that buy stamps themselves: shows the Bee node's own wallet (`/wallet`), lets the user top it up with xDAI + xBZZ from their connected wallet (one-time setup), and buy stamps right from the modal (`POST /stamps`).
+- 🎛️ **Per-dApp requirements** (`requirements: { xdai, xbzz, postageStamp }`) — each dApp declares what "connected" means for it. Disabled requirements drop their step from the modal and from `isFullyConnected`. E.g. a dApp that manages stamps itself uses `{ xdai: true, xbzz: false, postageStamp: false }`.
+- 💸 **Node-wallet funding** (`xbzz: true`) — for dApps that buy stamps themselves: shows the Bee node's own wallet (`/wallet`) and lets the user top it up with xDAI + xBZZ from their connected wallet (one-time setup). The dApp then buys stamps programmatically via `stamps.createStamp()` — the modal itself never purchases.
 - ✅ **At-a-glance status** — the button shows status dots for every gated step.
 - 🧩 **Headless hooks** — use the `useSwarmConnect` / `useBeeNode` / `usePostageStamps` / `useNodeWallet` hooks to build your own UI.
 - 🎨 **Self-contained dark theme** — scoped CSS variables and inline styles, no CSS import required.
@@ -73,12 +74,12 @@ Provides the wagmi and React Query context. Configured for the Gnosis chain with
 
 ### `<SwarmConnectButton>`
 
-The connect button. Opens a dark-themed modal with sequential, gated steps — **1.** wallet, **2.** network (Gnosis), **3.** xDAI balance, **4.** Bee node, and **5.** postage stamp — where each step unlocks only once the previous one is satisfied. With `stampMode="create"` a **node wallet** step is inserted before the stamp step (making it six steps): it reads the Bee node's own wallet and, if it's empty, lets the user send it xDAI + xBZZ from their connected wallet so the node can buy postage stamps. The widget ships its own scoped styles (no CSS import required); the `Space Grotesk` / `Inter` / `JetBrains Mono` fonts are used when present and fall back to system fonts otherwise.
+The connect button. Opens a dark-themed modal with sequential, gated steps — wallet → network (Gnosis) → xDAI balance → Bee node → node wallet → postage stamp — where each step unlocks only once the previous one is satisfied. Which steps appear depends on `requirements`: wallet, network, and Bee node are always present; the xDAI balance, node-wallet funding, and stamp-selection steps are included only when their requirement is enabled, and the numbering adapts. The widget ships its own scoped styles (no CSS import required); the `Space Grotesk` / `Inter` / `JetBrains Mono` fonts are used when present and fall back to system fonts otherwise.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `beeApiUrl` | `string` | `http://localhost:1633` | Base URL of the Bee node API. |
-| `stampMode` | `'select' \| 'create'` | `'select'` | `'select'`: only pick existing stamps. `'create'`: also fund the node wallet and buy stamps from the modal. |
+| `requirements` | `SwarmConnectRequirements` | `{ xdai: true, xbzz: false, postageStamp: true }` | Which requirements this dApp needs; disabled ones drop their step. See [Requirements](#requirements). |
 | `label` | `string` | auto | Overrides the button label. Defaults to `Connect to Swarm`, or the truncated address once fully connected. |
 
 ### `<SwarmConnectModal>`
@@ -101,14 +102,18 @@ function Status() {
     nodeWallet,       // { address?, xdai?, xbzz?, isLoading, error?, isFunded, refresh() } — the node's own wallet
     beeApiUrl,        // current Bee node URL
     setBeeApiUrl,     // change the Bee node URL at runtime, then re-check
-    stampMode,        // 'select' | 'create'
+    requirements,     // resolved { xdai, xbzz, postageStamp } booleans
     isWalletConnected,
     address,
     isOnGnosis,
     chainId,
     balance,          // { xdai?, isLoading, hasGas } — native xDAI on Gnosis
-    isFullyConnected, // wallet + Gnosis + xDAI gas + node (+ funded node wallet in create mode) + stamp
-  } = useSwarmConnect({ beeApiUrl: 'http://localhost:1633', stampMode: 'create' })
+    isFullyConnected, // wallet + Gnosis + node + every enabled requirement
+  } = useSwarmConnect({
+    beeApiUrl: 'http://localhost:1633',
+    // this dApp needs user gas, but manages stamps itself:
+    requirements: { xdai: true, xbzz: false, postageStamp: false },
+  })
 
   return <span>{isFullyConnected ? 'Ready' : 'Not connected'}</span>
 }
@@ -124,7 +129,7 @@ const { isRunning, isChecking, version, error, check } = useBeeNode('http://loca
 
 ### `usePostageStamps(beeApiUrl?)`
 
-Fetches, selects, and (in create-mode UIs) buys postage stamps.
+Fetches, selects, and (for dApps that buy stamps themselves) creates postage stamps.
 
 ```tsx
 const { stamps, isLoading, error, fetchStamps, selectedStampId, selectStamp,
@@ -150,28 +155,43 @@ const { address, xdai, xbzz, isLoading, error, isFunded, refresh } =
 
 ```ts
 interface SwarmConnectConfig {
-  beeApiUrl?: string             // initial Bee node URL; defaults to http://localhost:1633
-  stampMode?: 'select' | 'create' // defaults to 'select'
+  beeApiUrl?: string                      // initial Bee node URL; defaults to http://localhost:1633
+  requirements?: SwarmConnectRequirements // which steps this dApp needs; see below
 }
 ```
 
 `beeApiUrl` is only the **initial** value. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
 
-### Stamp modes
+### Requirements
 
-Swarm splits responsibilities between two wallets: the **user's wallet** only needs xDAI for gas, while the **Bee node's wallet** needs xDAI *and* xBZZ because it is the one buying postage stamps on chain.
+Every dApp needs a connected wallet, the Gnosis chain, and a reachable Bee node — those steps are always present. The rest is per-dApp via `requirements`; a disabled requirement drops its step from the modal and is ignored by `isFullyConnected`:
 
-- **`'select'`** (default) — the dApp only uses stamps the user already created. No xBZZ, no node funding, no on-chain spending from the modal.
-- **`'create'`** — the dApp can buy stamps. The modal gains a *node wallet* step that shows the node's xDAI/xBZZ balances and, while they're empty, offers a one-time top-up (a native xDAI transfer plus an ERC-20 xBZZ transfer to the node's address). The stamp step then also offers a *buy stamp* form (`POST /stamps/{amount}/{depth}`).
+```ts
+interface SwarmConnectRequirements {
+  xdai?: boolean         // default true  — user wallet must hold xDAI for gas
+  xbzz?: boolean         // default false — node wallet funded (xDAI + xBZZ) so the dApp can buy stamps
+  postageStamp?: boolean // default true  — user must select a postage stamp in the modal
+}
+```
 
-"Fully connected" requires all of the following:
+- **`xdai`** — adds the *Balance* step: shows the connected wallet's native xDAI on Gnosis and links a faucet while it's empty. Disable for read-only dApps that never transact from the user's wallet.
+- **`xbzz`** — adds the *Node wallet* step: shows the Bee node's own xDAI/xBZZ balances (`GET /wallet`) and, while they're empty, offers a one-time top-up (a native xDAI transfer plus an ERC-20 xBZZ transfer to the node's address). Enable when your dApp buys stamps itself — purchasing is your dApp's job via `stamps.createStamp({ amount, depth, label })` (`POST /stamps/{amount}/{depth}`); the modal never buys.
+- **`postageStamp`** — adds the *Postage stamp* step where the user picks an existing stamp. Disable when the dApp manages stamps itself (e.g. it creates and tracks its own batches).
+
+Example — a dApp that needs user gas but manages stamps itself:
+
+```tsx
+<SwarmConnectButton requirements={{ xdai: true, xbzz: false, postageStamp: false }} />
+```
+
+"Fully connected" requires all of the following (skipping disabled requirements):
 
 1. A connected wallet.
 2. The wallet on the Gnosis chain (chain ID `100`).
-3. A non-zero xDAI balance on that wallet (gas for its own transactions).
+3. *(`xdai`)* A non-zero xDAI balance on that wallet.
 4. A reachable Bee node (`/health` responds OK).
-5. *(create mode only)* The node's wallet funded with xDAI + xBZZ.
-6. A selected postage stamp.
+5. *(`xbzz`)* The node's wallet funded with xDAI + xBZZ.
+6. *(`postageStamp`)* A selected postage stamp.
 
 ## Development
 
@@ -184,7 +204,7 @@ npm run build        # build the library + type declarations to dist/
 
 ### Demo app
 
-`npm run dev` serves a small playground in [`example/`](./example) for testing sign-in end to end. It renders the connect button and, once you're fully connected, shows the live state — wallet address, chain, xDAI balance, Bee node URL + version, the node's overlay (Bee) address, and the selected postage stamp. Point it at a running Bee node (defaults to `http://localhost:1633`, editable in the modal).
+`npm run dev` serves a playground in [`example/`](./example) for testing sign-in end to end. It shows **four connection scenarios side by side** — classic stamp selection, dApp-managed stamps (`postageStamp: false`), dApp-buys-stamps with node funding (`xbzz: true`), and a minimal node-only flow — each with its own `useSwarmConnect` instance and modal, so you can see how the gated steps adapt to `requirements`. Once a scenario is fully connected its card shows the live state: wallet address, chain, xDAI balance, Bee node URL + version, the node's overlay address, node-wallet balances, and the selected postage stamp (as applicable). Point it at a running Bee node (defaults to `http://localhost:1633`, editable in each modal).
 
 **`ENOSPC: System limit for number of file watchers reached`?** Your machine's inotify watch limit is exhausted. Either:
 

@@ -1,78 +1,156 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useDisconnect } from 'wagmi'
+import { useAccount, useDisconnect } from 'wagmi'
 import { useSwarmConnect, SwarmConnectModal } from '../src'
+import type { SwarmConnectRequirements } from '../src'
 
 /**
- * Demo playground. Drives the connect button, the modal, and a live data panel
- * from a SINGLE useSwarmConnect instance so the panel reflects exactly what the
- * modal does (the public <SwarmConnectButton> keeps its own state internally).
+ * Demo playground showing several connection scenarios side by side. Each
+ * card runs its own useSwarmConnect instance (own modal, own gating) with a
+ * different `requirements` config. Wallet + chain state is shared via wagmi.
  */
+
+interface Scenario {
+  id: string
+  title: string
+  desc: string
+  requirements: SwarmConnectRequirements
+}
+
+const SCENARIOS: Scenario[] = [
+  {
+    id: 'classic',
+    title: 'Classic — select a stamp',
+    desc: 'The default. The user picks one of their existing postage stamps; the dApp uploads with it.',
+    requirements: { xdai: true, xbzz: false, postageStamp: true },
+  },
+  {
+    id: 'dapp-managed',
+    title: 'dApp-managed stamps',
+    desc: 'The dApp creates and tracks its own stamps — the user only needs gas. No stamp step.',
+    requirements: { xdai: true, xbzz: false, postageStamp: false },
+  },
+  {
+    id: 'stamp-create',
+    title: 'dApp buys stamps — node funding',
+    desc: 'The node wallet must be topped up with xDAI + xBZZ so the dApp can buy stamps via createStamp().',
+    requirements: { xdai: true, xbzz: true, postageStamp: true },
+  },
+  {
+    id: 'minimal',
+    title: 'Minimal — node only',
+    desc: 'Read-style dApp: wallet identity, Gnosis, and a running Bee node. No gas, no stamps.',
+    requirements: { xdai: false, xbzz: false, postageStamp: false },
+  },
+]
+
 export function App() {
-  const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect({ stampMode: 'create' })
+  const { isConnected, address } = useAccount()
   const { disconnect } = useDisconnect()
-  const { beeNode, stamps, nodeWallet, beeApiUrl, isWalletConnected, address, isOnGnosis, chainId, balance, isFullyConnected } = swarm
+
+  return (
+    <div className="swarm-connect" style={page}>
+      <div style={{ width: 1080, maxWidth: '100%' }}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6, flexWrap: 'wrap' }}>
+          <BeeMark size={34} />
+          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 24, color: 'var(--fg)', margin: 0, letterSpacing: '-.01em', flex: 1 }}>
+            swarm-connect scenarios
+          </h1>
+          {isConnected && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-muted)' }}>
+                {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''}
+              </span>
+              <SignOutBtn onClick={() => disconnect()} />
+            </div>
+          )}
+        </div>
+        <p style={{ color: 'var(--fg-muted)', margin: '0 0 24px', fontSize: 14, lineHeight: 1.5, maxWidth: 720 }}>
+          Each card is an independent <code style={codeStyle}>useSwarmConnect</code> instance with its own{' '}
+          <code style={codeStyle}>requirements</code> — open each modal to see how the gated steps adapt.
+          Wallet and chain state are shared; node, funding, and stamp requirements differ per scenario.
+        </p>
+
+        {/* scenario grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 18 }}>
+          {SCENARIOS.map(s => <ScenarioCard key={s.id} scenario={s} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScenarioCard({ scenario }: { scenario: Scenario }) {
+  const [open, setOpen] = useState(false)
+  const swarm = useSwarmConnect({ requirements: scenario.requirements })
+  const { beeNode, stamps, nodeWallet, requirements, beeApiUrl, isWalletConnected, isOnGnosis, chainId, balance, isFullyConnected, address } = swarm
   const beeOverlay = useBeeOverlay(beeApiUrl, beeNode.isRunning)
   const selectedStamp = stamps.stamps.find(s => s.batchID === stamps.selectedStampId)
 
   return (
-    <div className="swarm-connect" style={{
-      position: 'relative', zIndex: 2, minHeight: '100vh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-    }}>
-      <div style={card}>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse 70% 90% at 90% -10%, var(--accent-wash), transparent 60%)' }} />
-        <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <BeeMark size={34} />
-            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 23, color: 'var(--fg)', margin: 0, letterSpacing: '-.01em' }}>
-              swarm-connect demo
-            </h1>
+    <div style={card}>
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse 70% 90% at 90% -10%, var(--accent-wash), transparent 60%)' }} />
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
+        {/* title + requirement chips */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16.5, color: 'var(--fg)', margin: 0 }}>
+              {scenario.title}
+            </h2>
+            <span style={{ display: 'inline-flex', gap: 6 }}>
+              <ReqChip on={requirements.xdai}>xdai</ReqChip>
+              <ReqChip on={requirements.xbzz}>xbzz</ReqChip>
+              <ReqChip on={requirements.postageStamp}>stamp</ReqChip>
+            </span>
           </div>
-          <p style={{ color: 'var(--fg-muted)', margin: '0 0 22px', fontSize: 14, lineHeight: 1.5 }}>
-            Click the button, complete the six gated steps (stamp-create mode), then watch the live connection state below.
-          </p>
+          <p style={{ color: 'var(--fg-muted)', margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>{scenario.desc}</p>
+        </div>
 
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
-            <TriggerButton fullyConnected={isFullyConnected} address={address} onClick={() => setOpen(true)} />
-            {isWalletConnected && <SignOutBtn onClick={() => disconnect()} />}
-          </div>
+        {/* connect */}
+        <div>
+          <TriggerButton fullyConnected={isFullyConnected} address={address} onClick={() => setOpen(true)} />
+        </div>
 
-          {isFullyConnected ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '12px 18px', alignItems: 'baseline' }}>
-              <Row label="Status"><Badge ok>Fully connected</Badge></Row>
-              <Row label="Wallet address" mono>{address}</Row>
-              <Row label="Chain">Gnosis <span style={{ color: 'var(--fg-muted)' }}>(ID {chainId})</span></Row>
-              <Row label="xDAI balance" mono>{balance.xdai !== undefined ? balance.xdai.toFixed(2) : '—'}</Row>
-              <Row label="Bee node URL" mono>{beeApiUrl}</Row>
-              <Row label="Bee version">{beeNode.version ?? '—'}</Row>
-              <Row label="Bee overlay" mono>{beeOverlay ?? 'loading…'}</Row>
-              <Row label="Node wallet" mono>{nodeWallet.address ?? '—'}</Row>
-              <Row label="Node xDAI / xBZZ" mono>
+        {/* live state */}
+        {isFullyConnected ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '128px 1fr', gap: '8px 14px', alignItems: 'baseline' }}>
+            <Row label="Status"><Badge ok>Fully connected</Badge></Row>
+            <Row label="Wallet" mono>{address}</Row>
+            <Row label="Chain">Gnosis <span style={{ color: 'var(--fg-muted)' }}>(ID {chainId})</span></Row>
+            {requirements.xdai && (
+              <Row label="xDAI" mono>{balance.xdai !== undefined ? balance.xdai.toFixed(4) : '—'}</Row>
+            )}
+            <Row label="Bee node" mono>{beeApiUrl}</Row>
+            <Row label="Bee version">{beeNode.version ?? '—'}</Row>
+            <Row label="Bee overlay" mono>{beeOverlay ? `${beeOverlay.slice(0, 10)}…${beeOverlay.slice(-8)}` : 'loading…'}</Row>
+            {requirements.xbzz && (
+              <Row label="Node xDAI/xBZZ" mono>
                 {nodeWallet.xdai !== undefined ? nodeWallet.xdai.toFixed(4) : '—'} / {nodeWallet.xbzz !== undefined ? nodeWallet.xbzz.toFixed(4) : '—'}
               </Row>
-              <Row label="Postage stamp" mono>{selectedStamp?.batchID ?? stamps.selectedStampId ?? '—'}</Row>
-              <Row label="Stamp label">{selectedStamp?.label || '—'}</Row>
-              <Row label="Stamp usable">
-                {selectedStamp ? <Badge ok={selectedStamp.usable}>{selectedStamp.usable ? 'usable' : 'unusable'}</Badge> : '—'}
+            )}
+            {requirements.postageStamp && (
+              <Row label="Stamp" mono>
+                {selectedStamp ? `${selectedStamp.batchID.slice(0, 10)}…${selectedStamp.batchID.slice(-8)}` : '—'}
+                {selectedStamp && (
+                  <Badge ok={selectedStamp.usable}>{selectedStamp.usable ? 'usable' : 'unusable'}</Badge>
+                )}
               </Row>
+            )}
+          </div>
+        ) : (
+          <div style={{ border: '1px dashed var(--line-2)', borderRadius: 10, padding: '11px 14px', background: 'var(--bunker)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+              <StepInline done={isWalletConnected}>Wallet</StepInline>
+              <StepInline done={isOnGnosis}>Gnosis</StepInline>
+              {requirements.xdai && <StepInline done={balance.hasGas}>xDAI</StepInline>}
+              <StepInline done={beeNode.isRunning}>Bee node</StepInline>
+              {requirements.xbzz && <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>}
+              {requirements.postageStamp && <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>}
             </div>
-          ) : (
-            <div style={{ border: '1px dashed var(--line-2)', borderRadius: 10, padding: '14px 16px', background: 'var(--bunker)' }}>
-              <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginBottom: 12 }}>Not fully connected yet — live progress:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
-                <StepInline done={isWalletConnected}>Wallet</StepInline>
-                <StepInline done={isOnGnosis}>Gnosis</StepInline>
-                <StepInline done={balance.hasGas}>xDAI</StepInline>
-                <StepInline done={beeNode.isRunning}>Bee node</StepInline>
-                <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>
-                <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {open && (
@@ -82,7 +160,7 @@ export function App() {
           stamps={stamps}
           beeApiUrl={beeApiUrl}
           setBeeApiUrl={swarm.setBeeApiUrl}
-          stampMode={swarm.stampMode}
+          requirements={requirements}
           nodeWallet={nodeWallet}
         />
       )}
@@ -106,6 +184,19 @@ function useBeeOverlay(beeApiUrl: string, isRunning: boolean): string | undefine
 }
 
 /* ---- demo atoms (dark theme, mirror the widget's look) ---- */
+
+function ReqChip({ on, children }: { on: boolean; children: string }) {
+  return (
+    <span style={{
+      fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.05em', textTransform: 'uppercase',
+      color: on ? 'var(--accent-bright)' : 'var(--fg-faint)',
+      background: on ? 'var(--accent-wash)' : 'transparent',
+      border: `1px solid ${on ? 'var(--line-orange)' : 'var(--line-2)'}`,
+      borderRadius: 3, padding: '2px 6px', lineHeight: 1.3, whiteSpace: 'nowrap',
+      textDecoration: on ? 'none' : 'line-through',
+    }}>{children}</span>
+  )
+}
 
 function TriggerButton({ fullyConnected, address, onClick }: { fullyConnected: boolean; address?: string; onClick: () => void }) {
   const [h, setH] = useState(false)
@@ -136,7 +227,7 @@ function SignOutBtn({ onClick }: { onClick: () => void }) {
       style={{
         fontFamily: 'var(--font-mono)', fontSize: 12.5, letterSpacing: '.04em', background: 'transparent',
         border: `1px solid ${h ? 'var(--line-orange)' : 'var(--line-2)'}`,
-        color: h ? 'var(--accent-bright)' : 'var(--fg-soft)', borderRadius: 6, padding: '10px 16px',
+        color: h ? 'var(--accent-bright)' : 'var(--fg-soft)', borderRadius: 6, padding: '8px 14px',
         cursor: 'pointer', transition: 'all .15s var(--ease)', whiteSpace: 'nowrap',
       }}>sign out</button>
   )
@@ -145,8 +236,8 @@ function SignOutBtn({ onClick }: { onClick: () => void }) {
 function Row({ label, children, mono }: { label: string; children: ReactNode; mono?: boolean }) {
   return (
     <>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--fg-muted)' }}>{label}</div>
-      <div style={{ fontSize: 13.5, color: 'var(--fg)', fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)', wordBreak: 'break-all', lineHeight: 1.45 }}>{children}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--fg-muted)' }}>{label}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--fg)', fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)', wordBreak: 'break-all', lineHeight: 1.45 }}>{children}</div>
     </>
   )
 }
@@ -187,8 +278,16 @@ function BeeMark({ size = 30 }: { size?: number }) {
   )
 }
 
+const page: CSSProperties = {
+  position: 'relative', zIndex: 2, minHeight: '100vh',
+  display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 24px',
+}
 const card: CSSProperties = {
-  position: 'relative', width: 560, maxWidth: '100%', background: 'var(--surface)',
-  border: '1px solid var(--line-2)', borderRadius: 16, padding: 30, overflow: 'hidden',
+  position: 'relative', background: 'var(--surface)',
+  border: '1px solid var(--line-2)', borderRadius: 16, padding: 22, overflow: 'hidden',
   boxShadow: '0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,107,0,.06), 0 0 50px rgba(255,107,0,.06)',
+}
+const codeStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 12.5, background: 'var(--bunker)',
+  border: '1px solid var(--line)', color: 'var(--accent-bright)', padding: '1px 6px', borderRadius: 3,
 }

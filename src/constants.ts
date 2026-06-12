@@ -11,6 +11,9 @@ export const BZZ_DECIMALS = 16
 export const DEFAULT_FUND_XDAI = '0.1'
 export const DEFAULT_FUND_XBZZ = '0.5'
 
-/** Suggested values for buying a postage stamp (cost = 2^depth × amount PLUR). */
-export const DEFAULT_STAMP_DEPTH = 20
-export const DEFAULT_STAMP_AMOUNT = '1000000000'
+/** Default per-dApp requirements; see SwarmConnectRequirements. */
+export const DEFAULT_REQUIREMENTS = {
+  xdai: true,
+  xbzz: false,
+  postageStamp: true,
+} as const satisfies Record<string, boolean>

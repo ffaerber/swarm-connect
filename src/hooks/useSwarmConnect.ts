@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useAccount, useChainId, useBalance } from 'wagmi'
+import { useAccount, useBalance } from 'wagmi'
 import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
 import { useNodeWallet } from './useNodeWallet'
-import { GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY } from '../constants'
+import { GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY, DEFAULT_REQUIREMENTS } from '../constants'
 import type { SwarmConnectConfig, SwarmConnectState } from '../types'
 
 function readStoredBeeApiUrl(): string | undefined {
@@ -29,14 +29,16 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     }
   }, [beeApiUrl])
 
-  const stampMode = config.stampMode ?? 'select'
+  const requirements = { ...DEFAULT_REQUIREMENTS, ...config.requirements }
   const beeNode = useBeeNode(beeApiUrl)
   const stamps = usePostageStamps(beeApiUrl)
   const nodeWallet = useNodeWallet(beeApiUrl)
-  const { address, isConnected } = useAccount()
-  const chainId = useChainId()
+  // useAccount().chainId is the wallet's actual chain (undefined when
+  // disconnected) — unlike useChainId(), which reports the config's default
+  // chain even with no wallet, falsely "passing" the network step.
+  const { address, isConnected, chainId } = useAccount()
 
-  const isOnGnosis = chainId === GNOSIS_CHAIN_ID
+  const isOnGnosis = isConnected && chainId === GNOSIS_CHAIN_ID
 
   const { data: balanceData, isLoading: balanceLoading } = useBalance({
     address,
@@ -52,7 +54,7 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     stamps,
     beeApiUrl,
     setBeeApiUrl,
-    stampMode,
+    requirements,
     nodeWallet,
     isWalletConnected: isConnected,
     address,
@@ -60,8 +62,9 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     chainId,
     balance,
     isFullyConnected:
-      isConnected && isOnGnosis && hasGas && beeNode.isRunning &&
-      (stampMode === 'select' || nodeWallet.isFunded) &&
-      !!stamps.selectedStampId,
+      isConnected && isOnGnosis && beeNode.isRunning &&
+      (!requirements.xdai || hasGas) &&
+      (!requirements.xbzz || nodeWallet.isFunded) &&
+      (!requirements.postageStamp || !!stamps.selectedStampId),
   }
 }

@@ -8,7 +8,7 @@ export { useNodeWallet } from './hooks/useNodeWallet'
 export type {
   SwarmConnectConfig,
   SwarmConnectState,
-  StampMode,
+  SwarmConnectRequirements,
   BeeNodeStatus,
   PostageStamp,
   PostageStampsState,

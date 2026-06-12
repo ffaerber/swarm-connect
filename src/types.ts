@@ -1,14 +1,29 @@
 /**
- * 'select' — the dApp only uses postage stamps the user already owns.
- * 'create' — the dApp can buy stamps too, which needs the Bee node's own
- * wallet funded with xDAI + xBZZ (a one-time setup step shown in the modal).
+ * Which requirements this dApp needs before the user counts as connected.
+ * A disabled requirement drops its step from the modal and is ignored by
+ * isFullyConnected. Wallet, Gnosis chain, and a running Bee node are always
+ * required.
  */
-export type StampMode = 'select' | 'create'
+export interface SwarmConnectRequirements {
+  /** The user's wallet must hold xDAI for gas. Default: true. */
+  xdai?: boolean
+  /**
+   * The Bee node's own wallet must be funded with xDAI + xBZZ (adds the
+   * node-wallet top-up step) so the dApp can buy stamps, e.g. via
+   * stamps.createStamp(). Default: false.
+   */
+  xbzz?: boolean
+  /**
+   * The user must select a postage stamp in the modal. Set false when the
+   * dApp manages stamps itself. Default: true.
+   */
+  postageStamp?: boolean
+}
 
 export interface SwarmConnectConfig {
   beeApiUrl?: string
-  /** Defaults to 'select' so no on-chain spending is required to connect. */
-  stampMode?: StampMode
+  /** Per-dApp requirements; omitted fields use the defaults above. */
+  requirements?: SwarmConnectRequirements
 }
 
 export interface BeeNodeStatus {
@@ -76,11 +91,12 @@ export interface NodeWalletState {
 }
 
 export interface SwarmConnectState {
-  beeNode: BeeNodeStatus & { check: () => void }
+  beeNode: BeeNodeStatus & { check: () => void; disconnect: () => void }
   stamps: PostageStampsState
   beeApiUrl: string
   setBeeApiUrl: (url: string) => void
-  stampMode: StampMode
+  /** The resolved requirements (config merged with defaults). */
+  requirements: Required<SwarmConnectRequirements>
   nodeWallet: NodeWalletState
   isWalletConnected: boolean
   address?: string

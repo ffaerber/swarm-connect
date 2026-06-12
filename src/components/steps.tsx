@@ -9,7 +9,7 @@ import { erc20Abi, parseEther, parseUnits } from 'viem'
 import type { BaseError } from 'viem'
 import {
   GNOSIS_CHAIN_ID, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS,
-  DEFAULT_FUND_XDAI, DEFAULT_FUND_XBZZ, DEFAULT_STAMP_DEPTH, DEFAULT_STAMP_AMOUNT,
+  DEFAULT_FUND_XDAI, DEFAULT_FUND_XBZZ,
 } from '../constants'
 import type { BalanceState, BeeNodeStatus, NodeWalletState, PostageStamp, PostageStampsState } from '../types'
 import { Spinner, Badge, StatusRow, GhostBtn, PrimaryBtn, LockedNotice } from './atoms'
@@ -57,10 +57,13 @@ export function WalletStep({ isConnected, address }: {
 }) {
   const { connectors, connect, isPending, variables, error } = useConnect()
   const { disconnect } = useDisconnect()
+  const { connector: activeConnector } = useAccount()
 
   if (isConnected) {
     return (
-      <StatusRow tone="ok" title="Wallet connected" sub={address}>
+      <StatusRow tone="ok"
+        title={`Wallet connected${activeConnector ? ` · ${activeConnector.name}` : ''}`}
+        sub={address}>
         <GhostBtn onClick={() => disconnect()}>disconnect</GhostBtn>
       </StatusRow>
     )
@@ -85,11 +88,11 @@ export function WalletStep({ isConnected, address }: {
 export function NetworkStep({ locked, isOnGnosis, chainId }: {
   locked: boolean; isOnGnosis: boolean; chainId?: number
 }) {
-  const { switchChain, isPending } = useSwitchChain()
+  const { switchChain, isPending, error } = useSwitchChain()
   if (locked) return <LockedNotice>Connect a wallet to verify it is on the Gnosis chain.</LockedNotice>
   if (isOnGnosis) {
     return (
-      <StatusRow tone="ok" title="Gnosis chain" sub={`chain id ${GNOSIS_CHAIN_ID}`}>
+      <StatusRow tone="ok" title="Gnosis chain" sub={`wallet reports chain id ${chainId}`}>
         <Badge tone="ok">synced</Badge>
       </StatusRow>
     )
@@ -100,6 +103,11 @@ export function NetworkStep({ locked, isOnGnosis, chainId }: {
       <PrimaryBtn onClick={() => switchChain({ chainId: gnosis.id })} pending={isPending} block>
         {isPending ? 'switching…' : 'switch to Gnosis'}
       </PrimaryBtn>
+      {error && (
+        <div style={{ fontSize: 12, color: 'var(--bad)', fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
+          switch failed: {txError(error)}
+        </div>
+      )}
     </div>
   )
 }
@@ -208,9 +216,17 @@ export function BeeNodeStep({ node, beeApiUrl }: {
       </StatusRow>
     )
   }
+  if (!node.error) {
+    // Neutral state: never probed, or explicitly disconnected.
+    return (
+      <StatusRow tone="flat" title="Node not connected" sub={beeApiUrl}>
+        <GhostBtn onClick={node.check}>connect</GhostBtn>
+      </StatusRow>
+    )
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <StatusRow tone="bad" title="Node unreachable" sub={node.error ?? `no /health response from ${beeApiUrl}`} />
+      <StatusRow tone="bad" title="Node unreachable" sub={node.error} />
       <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span>start one with</span>
         <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, background: 'var(--bunker)', border: '1px solid var(--line)', color: 'var(--accent-bright)', padding: '2px 7px', borderRadius: 3 }}>bee start</code>
@@ -399,66 +415,8 @@ function StampCard({ stamp, selected, onSelect }: {
   )
 }
 
-function LabeledInput({ label, value, onChange, placeholder, width }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; width?: number
-}) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: width ? `0 0 ${width}px` : 1, minWidth: 0 }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-faint)' }}>{label}</span>
-      <input value={value} placeholder={placeholder} spellCheck={false} autoComplete="off"
-        onChange={e => onChange(e.target.value)}
-        style={{
-          minWidth: 0, background: 'var(--surface)', border: '1px solid var(--line-2)',
-          borderRadius: 6, outline: 'none', color: 'var(--fg)',
-          fontFamily: 'var(--font-mono)', fontSize: 12, padding: '8px 10px',
-        }} />
-    </label>
-  )
-}
-
-function CreateStampForm({ stamps }: { stamps: PostageStampsState }) {
-  const [label, setLabel] = useState('')
-  const [depth, setDepth] = useState(String(DEFAULT_STAMP_DEPTH))
-  const [amount, setAmount] = useState(DEFAULT_STAMP_AMOUNT)
-
-  if (stamps.isCreating) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--raised)' }}>
-        <Spinner />
-        <span style={{ color: 'var(--fg-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
-          buying stamp — waiting for the on-chain batch…
-        </span>
-      </div>
-    )
-  }
-
-  const depthNum = Number(depth)
-  const valid = Number.isInteger(depthNum) && depthNum >= 17 && /^\d+$/.test(amount.trim())
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', border: '1px dashed var(--line-2)', borderRadius: 8, background: 'var(--bunker)' }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <LabeledInput label="label" value={label} onChange={setLabel} placeholder="optional" />
-        <LabeledInput label="depth" value={depth} onChange={setDepth} width={64} />
-        <LabeledInput label="amount (plur)" value={amount} onChange={setAmount} width={120} />
-      </div>
-      <div style={hintStyle}>
-        Cost ≈ 2^depth × amount PLUR, paid in xBZZ from the node wallet. Higher amount → longer stamp lifetime.
-      </div>
-      <PrimaryBtn block
-        onClick={() => valid && stamps.createStamp({ amount: amount.trim(), depth: depthNum, label: label.trim() || undefined })}
-        style={!valid ? { opacity: .5, cursor: 'default' } : undefined}>
-        buy stamp
-      </PrimaryBtn>
-      {stamps.createError && (
-        <div style={{ fontSize: 12, color: 'var(--bad)', fontFamily: 'var(--font-mono)' }}>{stamps.createError}</div>
-      )}
-    </div>
-  )
-}
-
-export function StampStep({ stamps, locked, lockedHint, canCreate }: {
-  stamps: PostageStampsState; locked: boolean; lockedHint: string; canCreate: boolean
+export function StampStep({ stamps, locked, lockedHint }: {
+  stamps: PostageStampsState; locked: boolean; lockedHint: string
 }) {
   if (locked) return <LockedNotice>{lockedHint}</LockedNotice>
   if (stamps.isLoading) {
@@ -478,15 +436,17 @@ export function StampStep({ stamps, locked, lockedHint, canCreate }: {
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {stamps.stamps.length === 0 && !canCreate && (
-        <LockedNotice>No postage stamps on this node — buy one via the Bee API to continue.</LockedNotice>
+      {stamps.stamps.length === 0 && (
+        <>
+          <LockedNotice>No postage stamps on this node yet — once the dApp buys one it will appear here.</LockedNotice>
+          <GhostBtn onClick={stamps.fetchStamps}>refresh</GhostBtn>
+        </>
       )}
       {stamps.stamps.map(s => (
         <StampCard key={s.batchID} stamp={s}
           selected={stamps.selectedStampId === s.batchID}
           onSelect={() => stamps.selectStamp(s.batchID)} />
       ))}
-      {canCreate && <CreateStampForm stamps={stamps} />}
     </div>
   )
 }
