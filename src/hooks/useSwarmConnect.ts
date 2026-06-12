@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAccount, useChainId } from 'wagmi'
+import { useAccount, useChainId, useBalance } from 'wagmi'
 import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
 import { GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY } from '../constants'
@@ -27,12 +27,22 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
       // ignore storage failures (e.g. private mode / disabled storage)
     }
   }, [beeApiUrl])
+
   const beeNode = useBeeNode(beeApiUrl)
   const stamps = usePostageStamps(beeApiUrl)
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
 
   const isOnGnosis = chainId === GNOSIS_CHAIN_ID
+
+  const { data: balanceData, isLoading: balanceLoading } = useBalance({
+    address,
+    chainId: GNOSIS_CHAIN_ID,
+    query: { enabled: isConnected },
+  })
+  const xdai = balanceData ? Number(balanceData.formatted) : undefined
+  const hasGas = isOnGnosis && !!balanceData && balanceData.value > 0n
+  const balance = { xdai, isLoading: isConnected && balanceLoading, hasGas }
 
   return {
     beeNode,
@@ -43,6 +53,8 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     address,
     isOnGnosis,
     chainId,
-    isFullyConnected: beeNode.isRunning && !!stamps.selectedStampId && isConnected && isOnGnosis,
+    balance,
+    isFullyConnected:
+      beeNode.isRunning && !!stamps.selectedStampId && isConnected && isOnGnosis && hasGas,
   }
 }

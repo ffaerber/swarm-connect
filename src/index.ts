@@ -10,4 +10,5 @@ export type {
   BeeNodeStatus,
   PostageStamp,
   PostageStampsState,
+  BalanceState,
 } from './types'

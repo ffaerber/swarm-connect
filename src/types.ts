@@ -32,6 +32,14 @@ export interface PostageStampsState {
   selectStamp: (id: string) => void
 }
 
+export interface BalanceState {
+  /** Native xDAI balance on Gnosis, in ether units (undefined until loaded). */
+  xdai?: number
+  isLoading: boolean
+  /** True when connected, on Gnosis, and the xDAI balance is greater than zero. */
+  hasGas: boolean
+}
+
 export interface SwarmConnectState {
   beeNode: BeeNodeStatus & { check: () => void }
   stamps: PostageStampsState
@@ -41,5 +49,6 @@ export interface SwarmConnectState {
   address?: string
   isOnGnosis: boolean
   chainId?: number
+  balance: BalanceState
   isFullyConnected: boolean
 }

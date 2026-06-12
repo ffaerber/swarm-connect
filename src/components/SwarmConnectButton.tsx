@@ -1,51 +1,45 @@
 import { useState } from 'react'
 import { useSwarmConnect } from '../hooks/useSwarmConnect'
 import { SwarmConnectModal } from './SwarmConnectModal'
-import { STYLES, DEFAULT_BEE_API_URL } from '../constants'
-import type { SwarmConnectConfig } from '../types'
+import { DEFAULT_BEE_API_URL } from '../constants'
+import { ensureSwarmStyles } from '../theme'
+import type { SwarmConnectConfig, SwarmConnectState } from '../types'
 
 interface SwarmConnectButtonProps extends SwarmConnectConfig {
   label?: string
 }
 
 export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: SwarmConnectButtonProps) {
+  ensureSwarmStyles()
   const [open, setOpen] = useState(false)
-  const {
-    beeNode, stamps, beeApiUrl: currentBeeApiUrl, setBeeApiUrl,
-    isWalletConnected, address, isOnGnosis, isFullyConnected,
-  } = useSwarmConnect({ beeApiUrl })
+  const swarm = useSwarmConnect({ beeApiUrl })
+  const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, isFullyConnected, address } = swarm
 
+  const [h, setH] = useState(false)
   const displayLabel = label
-    ?? (isFullyConnected
-      ? (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'Connected')
-      : 'Connect to Swarm')
+    ?? (isFullyConnected && address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'Connect to Swarm')
 
   return (
     <>
       <button
+        className="swarm-connect"
         onClick={() => setOpen(true)}
+        onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: isFullyConnected ? STYLES.colors.successLight : STYLES.colors.primary,
-          color: isFullyConnected ? STYLES.colors.success : '#fff',
-          border: isFullyConnected ? `1.5px solid ${STYLES.colors.success}` : 'none',
-          borderRadius: 8, padding: '10px 18px',
-          cursor: 'pointer', fontSize: 15, fontWeight: 600,
-          boxShadow: isFullyConnected ? 'none' : '0 2px 8px rgba(26,86,219,0.25)',
-          transition: 'all 0.15s',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          display: 'inline-flex', alignItems: 'center', gap: 10,
+          fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '.04em',
+          padding: '10px 16px', borderRadius: 6, cursor: 'pointer',
+          background: isFullyConnected ? 'var(--ok-wash)' : 'var(--accent)',
+          color: isFullyConnected ? 'var(--ok)' : 'var(--accent-ink)',
+          border: `1px solid ${isFullyConnected ? 'var(--ok-line)' : 'transparent'}`,
+          boxShadow: isFullyConnected ? 'none' : (h ? '0 0 26px var(--accent-glow)' : '0 0 14px var(--accent-glow)'),
+          transform: h && !isFullyConnected ? 'translateY(-1px)' : 'none',
+          transition: 'all .15s var(--ease)', whiteSpace: 'nowrap',
         }}
-        onMouseOver={e => { if (!isFullyConnected) e.currentTarget.style.background = STYLES.colors.primaryHover }}
-        onMouseOut={e => { e.currentTarget.style.background = isFullyConnected ? STYLES.colors.successLight : STYLES.colors.primary }}
       >
-        {!isFullyConnected && (
-          <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <StatusDot ok={beeNode.isRunning} checking={beeNode.isChecking} />
-            <StatusDot ok={!!stamps.selectedStampId} />
-            <StatusDot ok={isWalletConnected} />
-            <StatusDot ok={isOnGnosis} />
-          </span>
-        )}
+        {isFullyConnected
+          ? <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)', boxShadow: '0 0 8px var(--ok)' }} />
+          : <ButtonDots swarm={swarm} />}
         {displayLabel}
       </button>
 
@@ -62,14 +56,21 @@ export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, label }: S
   )
 }
 
-function StatusDot({ ok, checking }: { ok: boolean; checking?: boolean }) {
-  const color = checking
-    ? STYLES.colors.warning
-    : ok ? STYLES.colors.success : STYLES.colors.error
+function ButtonDots({ swarm }: { swarm: SwarmConnectState }) {
+  const { beeNode, stamps, isWalletConnected, isOnGnosis, balance } = swarm
+  const dots: ('ok' | 'bad' | 'warn')[] = [
+    beeNode.isChecking ? 'warn' : beeNode.isRunning ? 'ok' : 'bad',
+    stamps.selectedStampId ? 'ok' : 'bad',
+    isWalletConnected ? 'ok' : 'bad',
+    isOnGnosis ? 'ok' : 'bad',
+    balance.hasGas ? 'ok' : isOnGnosis ? 'warn' : 'bad',
+  ]
+  const col = { ok: 'var(--accent-ink)', bad: 'rgba(26,14,2,.32)', warn: '#7a4a00' }
   return (
-    <span style={{
-      display: 'inline-block', width: 7, height: 7,
-      borderRadius: '50%', background: color,
-    }} />
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+      {dots.map((t, i) => (
+        <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: col[t], animation: t === 'warn' ? 'sc-pulse-dot 1.4s var(--ease) infinite' : 'none' }} />
+      ))}
+    </span>
   )
 }

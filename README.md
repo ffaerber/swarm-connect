@@ -13,11 +13,11 @@ A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/
 - 🐝 **Bee node detection** — checks a Bee node's `/health` endpoint and surfaces its version.
 - 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`); the chosen URL is persisted in `localStorage`.
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
-- 🪜 **Gated sequential flow** — a running Bee node and a selected postage stamp are required before the wallet step unlocks.
-- 🦊 **Wallet connect** — injected-wallet connection via [wagmi](https://wagmi.sh/), pinned to Gnosis chain (ID `100`).
-- ✅ **At-a-glance status** — the button shows status dots for node, stamp, wallet, and network.
+- 🪜 **Gated sequential flow** — five steps unlock in order: each of node → stamp → wallet → Gnosis network → xDAI gas is required before the next becomes available.
+- 🦊 **Wallet connect** — wallet connection via [wagmi](https://wagmi.sh/) connectors, pinned to the Gnosis chain (ID `100`), with an xDAI balance/gas check.
+- ✅ **At-a-glance status** — the button shows status dots for node, stamp, wallet, network, and balance.
 - 🧩 **Headless hooks** — use the `useSwarmConnect` / `useBeeNode` / `usePostageStamps` hooks to build your own UI.
-- 🎨 **Zero-dependency styling** — inline styles, no CSS imports required.
+- 🎨 **Self-contained dark theme** — scoped CSS variables and inline styles, no CSS import required.
 
 ## Installation
 
@@ -72,7 +72,7 @@ Provides the wagmi and React Query context. Configured for the Gnosis chain with
 
 ### `<SwarmConnectButton>`
 
-The connect button. Opens a modal with three sequential, gated steps — **1.** Bee node, **2.** postage stamp, **3.** wallet — where each step unlocks only once the previous one is satisfied.
+The connect button. Opens a dark-themed modal with five sequential, gated steps — **1.** Bee node, **2.** postage stamp, **3.** wallet, **4.** network (Gnosis) and **5.** xDAI balance — where each step unlocks only once the previous one is satisfied. The widget ships its own scoped styles (no CSS import required); the `Space Grotesk` / `Inter` / `JetBrains Mono` fonts are used when present and fall back to system fonts otherwise.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -102,7 +102,8 @@ function Status() {
     address,
     isOnGnosis,
     chainId,
-    isFullyConnected, // node running + stamp selected + wallet connected + on Gnosis
+    balance,          // { xdai?, isLoading, hasGas } — native xDAI on Gnosis
+    isFullyConnected, // node + stamp + wallet + Gnosis + xDAI gas
   } = useSwarmConnect({ beeApiUrl: 'http://localhost:1633' })
 
   return <span>{isFullyConnected ? 'Ready' : 'Not connected'}</span>
@@ -142,6 +143,7 @@ interface SwarmConnectConfig {
 2. A selected postage stamp.
 3. A connected wallet.
 4. The wallet on the Gnosis chain (chain ID `100`).
+5. A non-zero xDAI balance on that wallet (gas for its own transactions).
 
 ## Development
 
@@ -154,7 +156,7 @@ npm run build        # build the library + type declarations to dist/
 
 ### Demo app
 
-`npm run dev` serves a small playground in [`example/`](./example) for testing sign-in end to end. It renders the connect button and, once you're fully connected, shows the live state — wallet address, chain, Bee node URL + version, the node's overlay (Bee) address, and the selected postage stamp. Point it at a running Bee node (defaults to `http://localhost:1633`, editable in the modal).
+`npm run dev` serves a small playground in [`example/`](./example) for testing sign-in end to end. It renders the connect button and, once you're fully connected, shows the live state — wallet address, chain, xDAI balance, Bee node URL + version, the node's overlay (Bee) address, and the selected postage stamp. Point it at a running Bee node (defaults to `http://localhost:1633`, editable in the modal).
 
 **`ENOSPC: System limit for number of file watchers reached`?** Your machine's inotify watch limit is exhausted. Either:
 
