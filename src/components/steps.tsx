@@ -226,14 +226,28 @@ export function BeeNodeStep({ node, beeApiUrl }: {
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <StatusRow tone="bad" title="Node unreachable" sub={node.error} />
-      <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span>start one with</span>
-        <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, background: 'var(--bunker)', border: '1px solid var(--line)', color: 'var(--accent-bright)', padding: '2px 7px', borderRadius: 3 }}>bee start</code>
-        <GhostBtn onClick={node.check}>retry</GhostBtn>
-      </div>
+      <StatusRow tone="bad" title={node.isCorsBlocked ? 'Node blocks this origin' : 'Node unreachable'} sub={node.error} />
+      {node.isCorsBlocked ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>allow this site in the node config:</span>
+          <code style={codeChip}>cors-allowed-origins: ["*"]</code>
+          <span>then restart the node</span>
+          <GhostBtn onClick={node.check}>retry</GhostBtn>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>start one with</span>
+          <code style={codeChip}>bee start</code>
+          <GhostBtn onClick={node.check}>retry</GhostBtn>
+        </div>
+      )}
     </div>
   )
+}
+
+const codeChip: CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 11.5, background: 'var(--bunker)',
+  border: '1px solid var(--line)', color: 'var(--accent-bright)', padding: '2px 7px', borderRadius: 3,
 }
 
 /* ---------- STEP 5 — node wallet (create mode) ------------- */

@@ -21,10 +21,20 @@ export function useBeeNode(beeApiUrl = DEFAULT_BEE_API_URL) {
         setStatus({ isRunning: false, isChecking: false, error: `Node returned HTTP ${res.status}` })
       }
     } catch {
+      // "Failed to fetch" is opaque: the node may be down, or up but blocking
+      // this origin (CORS). A no-cors probe resolves (opaque response)
+      // whenever the server is reachable, so it tells the two apart.
+      const corsBlocked = await fetch(`${beeApiUrl}/health`, {
+        mode: 'no-cors',
+        signal: AbortSignal.timeout(5000),
+      }).then(() => true, () => false)
       setStatus({
         isRunning: false,
         isChecking: false,
-        error: `Cannot reach Bee node at ${beeApiUrl}`,
+        isCorsBlocked: corsBlocked,
+        error: corsBlocked
+          ? `Node at ${beeApiUrl} is reachable but rejects requests from this origin (CORS)`
+          : `Cannot reach Bee node at ${beeApiUrl}`,
       })
     }
   }, [beeApiUrl])

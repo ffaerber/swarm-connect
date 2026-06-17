@@ -31,6 +31,8 @@ export interface BeeNodeStatus {
   isChecking: boolean
   version?: string
   error?: string
+  /** True when the node is reachable but its CORS config rejects this origin. */
+  isCorsBlocked?: boolean
 }
 
 export interface PostageStamp {
