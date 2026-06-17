@@ -5,3 +5,6 @@ dist/
 
 # Local design reference (large generated bundler export, kept out of git)
 design/
+
+# Static example build (deployed to Swarm)
+example-dist/

@@ -43,7 +43,9 @@
     "dev": "vite",
     "dev:poll": "VITE_USE_POLLING=true vite",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "build:example": "vite build --config vite.example.config.ts",
+    "deploy:swarm": "bash scripts/deploy-swarm.sh"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

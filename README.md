@@ -8,6 +8,14 @@ A React connect-button and wizard for [Ethereum Swarm](https://www.ethswarm.org/
 
 📦 **npm:** [`@ffaerber/swarm-connect`](https://www.npmjs.com/package/@ffaerber/swarm-connect)
 
+🐝 **Live demo on Swarm** — the example app is hosted on Swarm itself, at bzz reference:
+
+```
+d7085f81cb7653ce1803fa000565ae7b5b12668705fd3b9be2a70927cd627617
+```
+
+Open it on any Bee node at `<bee>/bzz/d7085f81cb7653ce1803fa000565ae7b5b12668705fd3b9be2a70927cd627617/`, or — once the content has propagated across the network — through a public gateway such as [bzz.link](https://d7085f81cb7653ce1803fa000565ae7b5b12668705fd3b9be2a70927cd627617.bzz.link/).
+
 ## Features
 
 - 🪜 **Gated sequential flow** — steps unlock in order: wallet → Gnosis network → xDAI gas → Bee node → *(node wallet)* → postage stamp.
@@ -205,6 +213,15 @@ npm run build        # build the library + type declarations to dist/
 ### Demo app
 
 `npm run dev` serves a playground in [`example/`](./example) for testing sign-in end to end. It shows **four connection scenarios side by side** — classic stamp selection, dApp-managed stamps (`postageStamp: false`), dApp-buys-stamps with node funding (`xbzz: true`), and a minimal node-only flow — each with its own `useSwarmConnect` instance and modal, so you can see how the gated steps adapt to `requirements`. Once a scenario is fully connected its card shows the live state: wallet address, chain, xDAI balance, Bee node URL + version, the node's overlay address, node-wallet balances, and the selected postage stamp (as applicable). Point it at a running Bee node (defaults to `http://localhost:1633`, editable in each modal).
+
+This same playground is the [live demo on Swarm](#swarm-connect) above. To rebuild and redeploy it as a static, content-addressed website:
+
+```bash
+npm run build:example   # static build into example-dist/ (relative paths for subpath serving)
+BEE_API=https://your-bee-node POSTAGE_BATCH=<batchID> npm run deploy:swarm
+```
+
+`deploy:swarm` packs `example-dist/` and uploads it as a Swarm collection (`index.html` as the index document), printing the resulting `bzz` reference and gateway URLs.
 
 **`ENOSPC: System limit for number of file watchers reached`?** Your machine's inotify watch limit is exhausted. Either:
 
