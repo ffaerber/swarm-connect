@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useAccount, useBalance, useDisconnect } from 'wagmi'
-import { GNOSIS_CHAIN_ID, DEFAULT_REQUIREMENTS } from '../constants'
+import { useAccount, useBalance, useDisconnect, useReadContract } from 'wagmi'
+import { erc20Abi } from 'viem'
+import { GNOSIS_CHAIN_ID, DEFAULT_REQUIREMENTS, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS } from '../constants'
 import { ensureSwarmStyles } from '../theme'
 import { useNodeWallet } from '../hooks/useNodeWallet'
 import type { BeeNodeStatus, NodeWalletState, PostageStampsState, SwarmConnectRequirements } from '../types'
@@ -12,6 +13,8 @@ type StepState = 'locked' | 'active' | 'done'
 
 interface Step {
   key: string
+  /** 'wallet' = the user's wallet column; 'node' = the Bee node column. */
+  col: 'wallet' | 'node'
   title: string
   state: StepState
   hint: ReactNode
@@ -47,10 +50,23 @@ export function SwarmConnectModal({
   })
   const xdai = balanceData ? Number(balanceData.formatted) : undefined
   const hasGas = isOnGnosis && !!balanceData && balanceData.value > 0n
-  const balance = { xdai, isLoading: isConnected && balanceLoading, hasGas }
+
+  const { data: bzzData, isLoading: bzzLoading } = useReadContract({
+    abi: erc20Abi, address: BZZ_TOKEN_ADDRESS, functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: GNOSIS_CHAIN_ID,
+    query: { enabled: isConnected && req.xbzz },
+  })
+  const bzz = bzzData !== undefined ? Number(bzzData) / 10 ** BZZ_DECIMALS : undefined
+  const hasBzz = isOnGnosis && (bzz ?? 0) > 0
+  const balance = {
+    xdai, bzz,
+    isLoading: isConnected && (balanceLoading || (req.xbzz && bzzLoading)),
+    hasGas, hasBzz,
+  }
 
   // Hooks must be unconditional — fall back to a local instance when the
-  // caller doesn't share theirs (only consulted when req.xbzz is on).
+  // caller doesn't share theirs (only consulted when req.nodeWallet is on).
   const ownNodeWallet = useNodeWallet(beeApiUrl)
   const nodeWallet = nodeWalletProp ?? ownNodeWallet
 
@@ -69,25 +85,29 @@ export function SwarmConnectModal({
   useEffect(() => {
     if (!beeNode.isRunning) return
     stamps.fetchStamps()
-    if (req.xbzz) nodeWallet.refresh()
+    if (req.nodeWallet) nodeWallet.refresh()
   }, [beeNode.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Gated chain (disabled requirements are skipped):
-  // wallet → network → [gas] → node → [node wallet] → [stamp]
+  // Gated chain (disabled requirements are skipped). The Ethereum column must
+  // be fully satisfied before the Swarm column unlocks:
+  // wallet → network → [xDAI + xBZZ] → node → [node wallet] → [stamp]
   const gasOk = !req.xdai || hasGas
-  const nodeFundOk = !req.xbzz || nodeWallet.isFunded
+  const bzzOk = !req.xbzz || hasBzz
+  const walletSideOk = isOnGnosis && gasOk && bzzOk
+  const nodeFundOk = !req.nodeWallet || nodeWallet.isFunded
+  const showBalance = req.xdai || req.xbzz
 
   const walletState: StepState = isConnected ? 'done' : 'active'
   const networkState: StepState = !isConnected ? 'locked' : isOnGnosis ? 'done' : 'active'
-  const balanceState: StepState = !isOnGnosis ? 'locked' : hasGas ? 'done' : 'active'
-  const nodeState: StepState = !(isOnGnosis && gasOk) ? 'locked' : beeNode.isRunning ? 'done' : 'active'
+  const balanceState: StepState = !isOnGnosis ? 'locked' : (gasOk && bzzOk) ? 'done' : 'active'
+  const nodeState: StepState = !walletSideOk ? 'locked' : beeNode.isRunning ? 'done' : 'active'
   const nodeWalletState: StepState = nodeState !== 'done' ? 'locked' : nodeWallet.isFunded ? 'done' : 'active'
   const stampState: StepState = !(nodeState === 'done' && nodeFundOk) ? 'locked'
     : stamps.selectedStampId ? 'done' : 'active'
 
   const fullyConnected =
     isConnected && isOnGnosis && beeNode.isRunning &&
-    gasOk && nodeFundOk && (!req.postageStamp || !!stamps.selectedStampId)
+    gasOk && bzzOk && nodeFundOk && (!req.postageStamp || !!stamps.selectedStampId)
 
   // Tear down the session (wallet AND bee node), then close the modal.
   const { disconnect: disconnectWallet } = useDisconnect()
@@ -99,26 +119,26 @@ export function SwarmConnectModal({
 
   const steps: Step[] = [
     {
-      key: 'wallet', title: 'Wallet', state: walletState,
+      key: 'wallet', col: 'wallet', title: 'Browser wallet', state: walletState,
       hint: isConnected ? 'linked' : null,
       body: <WalletStep isConnected={isConnected} address={address} />,
     },
     {
-      key: 'network', title: 'Network chain', state: networkState,
+      key: 'network', col: 'wallet', title: 'Network chain', state: networkState,
       hint: isConnected ? (isOnGnosis ? 'gnosis' : 'wrong net') : null,
       body: <NetworkStep locked={networkState === 'locked'} isOnGnosis={isOnGnosis} chainId={chainId} />,
     },
-    ...(req.xdai ? [{
-      key: 'balance', title: 'Balance', state: balanceState,
-      hint: isOnGnosis ? (hasGas ? 'funded' : 'low') : null,
-      body: <BalanceStep locked={balanceState === 'locked'} balance={balance} />,
+    ...(showBalance ? [{
+      key: 'balance', col: 'wallet' as const, title: 'Balance', state: balanceState,
+      hint: !isOnGnosis ? null : (gasOk && bzzOk) ? 'ok' : 'low',
+      body: <BalanceStep locked={balanceState === 'locked'} balance={balance} showXdai={req.xdai} showBzz={req.xbzz} />,
     }] : []),
     {
-      key: 'node', title: 'Bee node', state: nodeState,
+      key: 'node', col: 'node', title: 'Bee node', state: nodeState,
       hint: beeNode.isRunning ? beeNode.version : null,
       body: nodeState === 'locked'
-        ? <LockedNotice>{req.xdai
-            ? 'Top up xDAI gas to unlock the Bee node connection.'
+        ? <LockedNotice>{showBalance
+            ? 'Satisfy the wallet balance to unlock the Bee node connection.'
             : 'Switch to the Gnosis chain to unlock the Bee node connection.'}</LockedNotice>
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -127,25 +147,31 @@ export function SwarmConnectModal({
           </div>
         ),
     },
-    ...(req.xbzz ? [{
-      key: 'nodeWallet', title: 'Node wallet', state: nodeWalletState,
+    ...(req.nodeWallet ? [{
+      key: 'nodeWallet', col: 'node' as const, title: 'Bee wallet', state: nodeWalletState,
       hint: nodeWalletState === 'locked' ? null : nodeWallet.isFunded ? 'funded' : 'top up',
       body: <NodeWalletStep locked={nodeWalletState === 'locked'} nodeWallet={nodeWallet} />,
     }] : []),
     ...(req.postageStamp ? [{
-      key: 'stamp', title: 'Postage stamp', state: stampState,
+      key: 'stamp', col: 'node' as const, title: 'Postage stamp', state: stampState,
       hint: stamps.selectedStampId ? '1 selected' : stampState !== 'locked' ? `${stamps.stamps.length} found` : null,
       body: <StampStep stamps={stamps} locked={stampState === 'locked'}
-        lockedHint={req.xbzz
-          ? 'Fund the node wallet to manage postage stamps.'
+        lockedHint={req.nodeWallet
+          ? 'Fund the Bee wallet to manage postage stamps.'
           : 'Bring a node online to load its postage stamps.'} />,
     }] : []),
   ]
 
-  const trail = steps.map(s => ({
-    wallet: 'wallet', network: 'chain', balance: 'gas',
-    node: 'node', nodeWallet: 'fund', stamp: 'stamp',
-  }[s.key])).join(' · ')
+  // Number steps in gating order, then split into the two columns.
+  const numbered = steps.map((s, i) => ({ ...s, no: i + 1 }))
+  const walletCol = numbered.filter(s => s.col === 'wallet')
+  const nodeCol = numbered.filter(s => s.col === 'node')
+  const renderStep = (s: Step & { no: number }) => (
+    <section key={s.key} style={{ opacity: s.state === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
+      <StepLabel step={s.no} state={s.state} hint={s.hint}>{s.title}</StepLabel>
+      {s.body}
+    </section>
+  )
 
   return (
     <>
@@ -154,9 +180,9 @@ export function SwarmConnectModal({
         background: 'rgba(4,6,8,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         animation: 'sc-backdrop-in .2s var(--ease)',
       }} />
-      <div className="swarm-connect" role="dialog" aria-label="Connect to Swarm" style={{
+      <div className="swarm-connect" role="dialog" aria-label="Swarm Connect" style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        zIndex: 9999, width: 440, maxWidth: 'calc(100vw - 28px)',
+        zIndex: 9999, width: 720, maxWidth: 'calc(100vw - 28px)',
         background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--line-2)',
         boxShadow: '0 32px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,107,0,.08), 0 0 60px rgba(255,107,0,.08)',
         overflow: 'hidden', animation: 'sc-modal-in .26s var(--ease) forwards',
@@ -168,12 +194,7 @@ export function SwarmConnectModal({
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <BeeMark size={30} />
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--fg)', lineHeight: 1.1 }}>Connect to Swarm</div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--fg-muted)', marginTop: 3 }}>
-                  // {fullyConnected ? 'ready' : trail}
-                </div>
-              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--fg)', lineHeight: 1.1 }}>Swarm Connect</div>
             </div>
             <button onClick={onClose} aria-label="Close" style={{
               background: 'transparent', border: '1px solid var(--line)', color: 'var(--fg-muted)',
@@ -185,16 +206,19 @@ export function SwarmConnectModal({
           </div>
         </div>
 
-        {/* body */}
-        <div className="sc-scroll" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 24, maxHeight: '62vh', overflowY: 'auto' }}>
-          {steps.map((s, i) => (
-            <section key={s.key} style={i === 0
-              ? { animation: 'sc-step-in .3s var(--ease)' }
-              : { opacity: s.state === 'locked' ? .55 : 1, transition: 'opacity .3s var(--ease)' }}>
-              <StepLabel step={i + 1} state={s.state} hint={s.hint}>{s.title}</StepLabel>
-              {s.body}
-            </section>
-          ))}
+        {/* body — two columns: your wallet (left) · the Bee node (right) */}
+        <div className="sc-scroll" style={{ padding: 20, maxHeight: '64vh', overflowY: 'auto' }}>
+          <div className="sc-cols">
+            <div className="sc-col">
+              <ColHeader label="Ethereum" sub="compute" />
+              {walletCol.map(renderStep)}
+            </div>
+            <div className="sc-divider" />
+            <div className="sc-col">
+              <ColHeader label="Swarm" sub="storage" />
+              {nodeCol.map(renderStep)}
+            </div>
+          </div>
         </div>
 
         {/* footer — split button when done, progress ribbon while connecting */}
@@ -214,6 +238,21 @@ export function SwarmConnectModal({
         )}
       </div>
     </>
+  )
+}
+
+/** Column heading that names which wallet a column's balances belong to. */
+function ColHeader({ label, sub }: { label: string; sub: string }) {
+  return (
+    <div style={{ paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+        letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--accent-bright)',
+      }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-faint)', marginTop: 4, letterSpacing: '.04em' }}>
+        {sub}
+      </div>
+    </div>
   )
 }
 

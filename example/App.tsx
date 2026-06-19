@@ -22,25 +22,31 @@ const SCENARIOS: Scenario[] = [
     id: 'classic',
     title: 'Classic — select a stamp',
     desc: 'The default. The user picks one of their existing postage stamps; the dApp uploads with it.',
-    requirements: { xdai: true, xbzz: false, postageStamp: true },
+    requirements: { xdai: true, postageStamp: true },
   },
   {
     id: 'dapp-managed',
     title: 'dApp-managed stamps',
     desc: 'The dApp creates and tracks its own stamps — the user only needs gas. No stamp step.',
-    requirements: { xdai: true, xbzz: false, postageStamp: false },
+    requirements: { xdai: true, postageStamp: false },
   },
   {
-    id: 'stamp-create',
+    id: 'platform-token',
+    title: 'xBZZ as a platform token',
+    desc: 'The dApp requires the user to hold xBZZ in their own wallet (a platform token) — not for buying stamps.',
+    requirements: { xdai: true, xbzz: true, postageStamp: false },
+  },
+  {
+    id: 'node-funding',
     title: 'dApp buys stamps — node funding',
     desc: 'The node wallet must be topped up with xDAI + xBZZ so the dApp can buy stamps via createStamp().',
-    requirements: { xdai: true, xbzz: true, postageStamp: true },
+    requirements: { xdai: true, nodeWallet: true, postageStamp: true },
   },
   {
     id: 'minimal',
     title: 'Minimal — node only',
     desc: 'Read-style dApp: wallet identity, Gnosis, and a running Bee node. No gas, no stamps.',
-    requirements: { xdai: false, xbzz: false, postageStamp: false },
+    requirements: { xdai: false, postageStamp: false },
   },
 ]
 
@@ -99,9 +105,10 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
             <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16.5, color: 'var(--fg)', margin: 0 }}>
               {scenario.title}
             </h2>
-            <span style={{ display: 'inline-flex', gap: 6 }}>
+            <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
               <ReqChip on={requirements.xdai}>xdai</ReqChip>
               <ReqChip on={requirements.xbzz}>xbzz</ReqChip>
+              <ReqChip on={requirements.nodeWallet}>node$</ReqChip>
               <ReqChip on={requirements.postageStamp}>stamp</ReqChip>
             </span>
           </div>
@@ -117,16 +124,19 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
         {isFullyConnected ? (
           <div style={{ display: 'grid', gridTemplateColumns: '128px 1fr', gap: '8px 14px', alignItems: 'baseline' }}>
             <Row label="Status"><Badge ok>Fully connected</Badge></Row>
-            <Row label="Wallet" mono>{address}</Row>
+            <Row label="Browser wallet" mono>{address}</Row>
             <Row label="Chain">Gnosis <span style={{ color: 'var(--fg-muted)' }}>(ID {chainId})</span></Row>
             {requirements.xdai && (
-              <Row label="xDAI" mono>{balance.xdai !== undefined ? balance.xdai.toFixed(4) : '—'}</Row>
+              <Row label="Wallet xDAI" mono>{balance.xdai !== undefined ? balance.xdai.toFixed(4) : '—'}</Row>
+            )}
+            {requirements.xbzz && (
+              <Row label="Wallet xBZZ" mono>{balance.bzz !== undefined ? balance.bzz.toFixed(4) : '—'}</Row>
             )}
             <Row label="Bee node" mono>{beeApiUrl}</Row>
             <Row label="Bee version">{beeNode.version ?? '—'}</Row>
             <Row label="Bee overlay" mono>{beeOverlay ? `${beeOverlay.slice(0, 10)}…${beeOverlay.slice(-8)}` : 'loading…'}</Row>
-            {requirements.xbzz && (
-              <Row label="Node xDAI/xBZZ" mono>
+            {requirements.nodeWallet && (
+              <Row label="Bee wallet xDAI/xBZZ" mono>
                 {nodeWallet.xdai !== undefined ? nodeWallet.xdai.toFixed(4) : '—'} / {nodeWallet.xbzz !== undefined ? nodeWallet.xbzz.toFixed(4) : '—'}
               </Row>
             )}
@@ -145,8 +155,9 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
               <StepInline done={isWalletConnected}>Wallet</StepInline>
               <StepInline done={isOnGnosis}>Gnosis</StepInline>
               {requirements.xdai && <StepInline done={balance.hasGas}>xDAI</StepInline>}
+              {requirements.xbzz && <StepInline done={balance.hasBzz}>xBZZ</StepInline>}
               <StepInline done={beeNode.isRunning}>Bee node</StepInline>
-              {requirements.xbzz && <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>}
+              {requirements.nodeWallet && <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>}
               {requirements.postageStamp && <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>}
             </div>
           </div>
@@ -198,6 +209,9 @@ function ReqChip({ on, children }: { on: boolean; children: string }) {
   )
 }
 
+const HEX_CELL = 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
+const HEX_BUTTON = 'polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%)'
+
 function TriggerButton({ fullyConnected, address, onClick }: { fullyConnected: boolean; address?: string; onClick: () => void }) {
   const [h, setH] = useState(false)
   const label = fullyConnected && address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'Connect to Swarm'
@@ -206,15 +220,16 @@ function TriggerButton({ fullyConnected, address, onClick }: { fullyConnected: b
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 10,
         fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '.04em',
-        padding: '10px 16px', borderRadius: 6, cursor: 'pointer',
+        padding: '12px 26px', cursor: 'pointer',
         background: fullyConnected ? 'var(--ok-wash)' : 'var(--accent)',
         color: fullyConnected ? 'var(--ok)' : 'var(--accent-ink)',
-        border: `1px solid ${fullyConnected ? 'var(--ok-line)' : 'transparent'}`,
-        boxShadow: fullyConnected ? 'none' : (h ? '0 0 26px var(--accent-glow)' : '0 0 14px var(--accent-glow)'),
+        border: 'none',
+        clipPath: HEX_BUTTON,
+        filter: fullyConnected ? 'none' : (h ? 'drop-shadow(0 0 13px var(--accent-glow))' : 'drop-shadow(0 0 8px var(--accent-glow))'),
         transform: h && !fullyConnected ? 'translateY(-1px)' : 'none',
         transition: 'all .15s var(--ease)', whiteSpace: 'nowrap',
       }}>
-      {fullyConnected && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)', boxShadow: '0 0 8px var(--ok)' }} />}
+      {fullyConnected && <span style={{ width: 11, height: 12, clipPath: HEX_CELL, background: 'var(--ok)' }} />}
       {label}
     </button>
   )

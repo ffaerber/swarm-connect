@@ -15,5 +15,6 @@ export const DEFAULT_FUND_XBZZ = '0.5'
 export const DEFAULT_REQUIREMENTS = {
   xdai: true,
   xbzz: false,
+  nodeWallet: false,
   postageStamp: true,
 } as const satisfies Record<string, boolean>

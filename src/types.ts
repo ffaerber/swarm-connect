@@ -8,11 +8,17 @@ export interface SwarmConnectRequirements {
   /** The user's wallet must hold xDAI for gas. Default: true. */
   xdai?: boolean
   /**
+   * The user's wallet must hold xBZZ — e.g. a platform token the dApp uses.
+   * This is about the *connected wallet's* balance, NOT about buying postage
+   * stamps (see `nodeWallet` for that). Default: false.
+   */
+  xbzz?: boolean
+  /**
    * The Bee node's own wallet must be funded with xDAI + xBZZ (adds the
    * node-wallet top-up step) so the dApp can buy stamps, e.g. via
    * stamps.createStamp(). Default: false.
    */
-  xbzz?: boolean
+  nodeWallet?: boolean
   /**
    * The user must select a postage stamp in the modal. Set false when the
    * dApp manages stamps itself. Default: true.
@@ -73,9 +79,13 @@ export interface PostageStampsState {
 export interface BalanceState {
   /** Native xDAI balance on Gnosis, in ether units (undefined until loaded). */
   xdai?: number
+  /** xBZZ (BZZ ERC-20) balance of the connected wallet (undefined until loaded). */
+  bzz?: number
   isLoading: boolean
   /** True when connected, on Gnosis, and the xDAI balance is greater than zero. */
   hasGas: boolean
+  /** True when the connected wallet holds any xBZZ. */
+  hasBzz: boolean
 }
 
 export interface NodeWalletState {

@@ -62,7 +62,7 @@ export function WalletStep({ isConnected, address }: {
   if (isConnected) {
     return (
       <StatusRow tone="ok"
-        title={`Wallet connected${activeConnector ? ` · ${activeConnector.name}` : ''}`}
+        title={`Browser wallet connected${activeConnector ? ` · ${activeConnector.name}` : ''}`}
         sub={address}>
         <GhostBtn onClick={() => disconnect()}>disconnect</GhostBtn>
       </StatusRow>
@@ -142,19 +142,38 @@ function TokenRow({ symbol, role, amount, loading }: {
   )
 }
 
-export function BalanceStep({ locked, balance }: { locked: boolean; balance: BalanceState }) {
-  if (locked) return <LockedNotice>Switch to the Gnosis chain to read your wallet's xDAI balance.</LockedNotice>
+export function BalanceStep({ locked, balance, showXdai, showBzz }: {
+  locked: boolean; balance: BalanceState; showXdai: boolean; showBzz: boolean
+}) {
+  if (locked) return <LockedNotice>Switch to the Gnosis chain to read your wallet's balances.</LockedNotice>
   const xdai = balance.xdai ?? 0
-  const needsGas = !balance.isLoading && xdai === 0
+  const bzz = balance.bzz ?? 0
+  const needsGas = showXdai && !balance.isLoading && xdai === 0
+  const needsBzz = showBzz && !balance.isLoading && bzz === 0
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <TokenRow symbol="xDAI" role="gas for transactions from this wallet" amount={xdai} loading={balance.isLoading} />
+      {showXdai && (
+        <TokenRow symbol="xDAI" role="gas for transactions from this wallet" amount={xdai} loading={balance.isLoading} />
+      )}
+      {showBzz && (
+        <TokenRow symbol="xBZZ" role="token held in this wallet" amount={bzz} loading={balance.isLoading} />
+      )}
       <div style={hintStyle}>
-        Your connected wallet signs and pays gas for its own transactions — separate from the wallet running your Bee node.
+        {showXdai && showBzz
+          ? 'This is your browser wallet — its xDAI pays gas and its xBZZ is held here. Separate from the Bee wallet.'
+          : showBzz
+            ? 'The xBZZ balance of your browser wallet — separate from the Bee wallet.'
+            : 'Your browser wallet signs and pays gas for its own transactions — separate from the Bee wallet.'}
       </div>
       {needsGas && (
         <PrimaryBtn onClick={() => window.open('https://www.gnosisfaucet.com', '_blank', 'noopener')} block>
           get xDAI
+        </PrimaryBtn>
+      )}
+      {needsBzz && (
+        <PrimaryBtn onClick={() => window.open('https://www.ethswarm.org/get-bzz', '_blank', 'noopener')} block>
+          get xBZZ
         </PrimaryBtn>
       )}
     </div>
@@ -325,7 +344,7 @@ function FundNodeForm({ to, onSettled }: { to: string; onSettled: () => void }) 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={hintStyle}>
-        One-time top-up — sent from your connected wallet to the node wallet:
+        One-time top-up — sent from your browser wallet to the Bee wallet:
       </div>
       <FundRow symbol="xDAI" value={xdaiAmount} onChange={setXdaiAmount} onSend={sendXdai}
         pending={xdaiTx.isPending} confirming={xdaiReceipt.isLoading && !!xdaiTx.data}
@@ -361,7 +380,7 @@ export function NodeWalletStep({ locked, nodeWallet }: { locked: boolean; nodeWa
   if (nodeWallet.error) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StatusRow tone="bad" title="Could not read node wallet" sub={nodeWallet.error} />
+        <StatusRow tone="bad" title="Could not read Bee wallet" sub={nodeWallet.error} />
         <GhostBtn onClick={nodeWallet.refresh}>retry</GhostBtn>
       </div>
     )

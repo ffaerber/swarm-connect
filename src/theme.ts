@@ -29,6 +29,13 @@ export const SWARM_CSS = `
 .sc-scroll::-webkit-scrollbar { width:8px; }
 .sc-scroll::-webkit-scrollbar-thumb { background:var(--line-2); border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
 .sc-scroll::-webkit-scrollbar-track { background:transparent; }
+.sc-cols { display:grid; grid-template-columns:1fr 1px 1fr; gap:20px 24px; align-items:start; }
+.sc-col { display:flex; flex-direction:column; gap:22px; min-width:0; }
+.sc-divider { align-self:stretch; background:var(--line); }
+@media (max-width:600px) {
+  .sc-cols { grid-template-columns:1fr; gap:22px; }
+  .sc-divider { display:none; }
+}
 `
 
 let injected = false
