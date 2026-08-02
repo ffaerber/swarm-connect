@@ -4,6 +4,7 @@ import { erc20Abi } from 'viem'
 import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
 import { useNodeWallet } from './useNodeWallet'
+import { useSwarmConnectConfig } from '../context/SwarmConnectProvider'
 import {
   GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY,
   DEFAULT_REQUIREMENTS, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS,
@@ -20,8 +21,11 @@ function readStoredBeeApiUrl(): string | undefined {
 }
 
 export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectState {
+  // Anything the caller left out falls back to the provider's config, then to
+  // the URL the user last chose, then to the built-in default.
+  const providerConfig = useSwarmConnectConfig()
   const [beeApiUrl, setBeeApiUrl] = useState(
-    () => config.beeApiUrl ?? readStoredBeeApiUrl() ?? DEFAULT_BEE_API_URL
+    () => config.beeApiUrl ?? providerConfig?.beeApiUrl ?? readStoredBeeApiUrl() ?? DEFAULT_BEE_API_URL
   )
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     }
   }, [beeApiUrl])
 
-  const requirements = { ...DEFAULT_REQUIREMENTS, ...config.requirements }
+  const requirements = { ...DEFAULT_REQUIREMENTS, ...providerConfig?.requirements, ...config.requirements }
   const beeNode = useBeeNode(beeApiUrl)
   const stamps = usePostageStamps(beeApiUrl)
   const nodeWallet = useNodeWallet(beeApiUrl)

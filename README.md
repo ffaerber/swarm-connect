@@ -62,7 +62,7 @@ import { SwarmConnectProvider, SwarmConnectButton } from '@ffaerber/swarm-connec
 export function App() {
   return (
     <SwarmConnectProvider>
-      <SwarmConnectButton beeApiUrl="http://localhost:1633" />
+      <SwarmConnectButton />
     </SwarmConnectProvider>
   )
 }
@@ -79,7 +79,7 @@ Provides the wagmi and React Query context. Configured for the Gnosis chain with
 | Prop | Type | Description |
 | --- | --- | --- |
 | `children` | `ReactNode` | Your app. |
-| `config` | `SwarmConnectConfig` | Optional configuration. |
+| `config` | `SwarmConnectConfig` | App-wide defaults (`beeApiUrl`, `requirements`) for every `useSwarmConnect` / `SwarmConnectButton` below it. Anything a component passes itself wins. |
 
 ### `<SwarmConnectButton>`
 
@@ -87,7 +87,7 @@ The connect button. Opens a dark-themed two-column modal — **Ethereum** (your 
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `beeApiUrl` | `string` | `http://localhost:1633` | Base URL of the Bee node API. |
+| `beeApiUrl` | `string` | last saved URL, else `http://localhost:1633` | Base URL of the Bee node API. Setting it pins the initial value and skips the `localStorage` restore. |
 | `requirements` | `SwarmConnectRequirements` | `{ xdai: true, xbzz: false, nodeWallet: false, postageStamp: true }` | Which requirements this dApp needs; disabled ones drop their step. See [Requirements](#requirements). |
 | `label` | `string` | auto | Overrides the button label. Defaults to `Connect to Swarm`, or the truncated address once fully connected. |
 
@@ -169,7 +169,7 @@ interface SwarmConnectConfig {
 }
 ```
 
-`beeApiUrl` is only the **initial** value. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
+`beeApiUrl` is only the **initial** value, and only when it is set — omit it and the last URL the user saved is restored instead. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
 
 ### Requirements
 
