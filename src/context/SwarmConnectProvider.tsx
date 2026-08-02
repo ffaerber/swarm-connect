@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { createContext, useContext } from 'react'
 import { createConfig, http, WagmiProvider } from 'wagmi'
 import { gnosis } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
@@ -15,15 +15,30 @@ const defaultConfig = createConfig({
   },
 })
 
+const SwarmConnectConfigContext = createContext<SwarmConnectConfig | undefined>(undefined)
+
+/**
+ * App-wide config from the nearest {@link SwarmConnectProvider}, or undefined
+ * when there is none. `useSwarmConnect` falls back to it for any field the
+ * caller left out.
+ */
+export function useSwarmConnectConfig(): SwarmConnectConfig | undefined {
+  return useContext(SwarmConnectConfigContext)
+}
+
 interface SwarmConnectProviderProps {
   children: React.ReactNode
   config?: SwarmConnectConfig
 }
 
-export function SwarmConnectProvider({ children }: SwarmConnectProviderProps) {
+export function SwarmConnectProvider({ children, config }: SwarmConnectProviderProps) {
   return (
     <WagmiProvider config={defaultConfig}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <SwarmConnectConfigContext.Provider value={config}>
+          {children}
+        </SwarmConnectConfigContext.Provider>
+      </QueryClientProvider>
     </WagmiProvider>
   )
 }

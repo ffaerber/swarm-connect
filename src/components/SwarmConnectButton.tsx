@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useSwarmConnect } from '../hooks/useSwarmConnect'
 import { SwarmConnectModal } from './SwarmConnectModal'
-import { DEFAULT_BEE_API_URL } from '../constants'
 import { ensureSwarmStyles } from '../theme'
 import type { SwarmConnectState } from '../types'
 import type { SwarmConnectConfig } from '../types'
@@ -16,7 +15,9 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
   label?: string
 }
 
-export function SwarmConnectButton({ beeApiUrl = DEFAULT_BEE_API_URL, requirements, label }: SwarmConnectButtonProps) {
+// `beeApiUrl` is deliberately left undefined when the prop is omitted: passing
+// a default here would shadow the URL the user last saved in localStorage.
+export function SwarmConnectButton({ beeApiUrl, requirements, label }: SwarmConnectButtonProps) {
   ensureSwarmStyles()
   const [open, setOpen] = useState(false)
   const swarm = useSwarmConnect({ beeApiUrl, requirements })

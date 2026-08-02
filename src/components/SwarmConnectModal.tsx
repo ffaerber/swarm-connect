@@ -74,12 +74,12 @@ export function SwarmConnectModal({
   // the node's wallet) once it's online. Skip the mount-time probe when the
   // node is already known-running: check() momentarily resets isRunning,
   // which would needlessly re-lock all the steps on reopen.
-  const probedOnce = useRef(false)
+  // Tracking the probed URL (rather than a "did mount" flag) also keeps
+  // StrictMode's double-invoked mount effect from probing twice.
+  const probedUrl = useRef<string | undefined>(beeNode.isRunning ? beeApiUrl : undefined)
   useEffect(() => {
-    if (!probedOnce.current) {
-      probedOnce.current = true
-      if (beeNode.isRunning) return
-    }
+    if (probedUrl.current === beeApiUrl) return
+    probedUrl.current = beeApiUrl
     beeNode.check()
   }, [beeApiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
