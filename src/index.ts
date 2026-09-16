@@ -5,6 +5,7 @@ export { useSwarmConnect } from './hooks/useSwarmConnect'
 export { useBeeNode } from './hooks/useBeeNode'
 export { usePostageStamps } from './hooks/usePostageStamps'
 export { useNodeWallet } from './hooks/useNodeWallet'
+export { useXbzzAllowance } from './hooks/useXbzzAllowance'
 export type {
   SwarmConnectConfig,
   SwarmConnectState,
@@ -15,4 +16,6 @@ export type {
   CreateStampOptions,
   BalanceState,
   NodeWalletState,
+  XbzzAllowanceRequirement,
+  XbzzAllowanceState,
 } from './types'

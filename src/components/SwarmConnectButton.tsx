@@ -65,6 +65,7 @@ export function SwarmConnectButton({ beeApiUrl, beeApiKey, requirements, label }
           setBeeApiKey={swarm.setBeeApiKey}
           requirements={swarm.requirements}
           nodeWallet={nodeWallet}
+          allowance={swarm.allowance}
         />
       )}
     </>
@@ -73,12 +74,13 @@ export function SwarmConnectButton({ beeApiUrl, beeApiKey, requirements, label }
 
 /** Per-step status as an interlocking honeycomb cluster of hexagon cells. */
 function ButtonHive({ swarm }: { swarm: SwarmConnectState }) {
-  const { beeNode, stamps, nodeWallet, requirements, isWalletConnected, isOnGnosis, balance } = swarm
+  const { beeNode, stamps, nodeWallet, requirements, isWalletConnected, isOnGnosis, balance, allowance } = swarm
   const cells: ('ok' | 'bad' | 'warn')[] = [
     isWalletConnected ? 'ok' : 'bad',
     isOnGnosis ? 'ok' : 'bad',
     ...(requirements.xdai ? [balance.hasGas ? 'ok' : isOnGnosis ? 'warn' : 'bad'] as const : []),
     ...(requirements.xbzz ? [balance.hasBzz ? 'ok' : isOnGnosis ? 'warn' : 'bad'] as const : []),
+    ...(requirements.xbzzAllowance ? [allowance.isApproved ? 'ok' : isOnGnosis ? 'warn' : 'bad'] as const : []),
     beeNode.isChecking ? 'warn' : beeNode.isRunning ? 'ok' : 'bad',
     ...(requirements.nodeWallet ? [nodeWallet.isFunded ? 'ok' : 'bad'] as const : []),
     ...(requirements.postageStamp ? [stamps.selectedStampId ? 'ok' : 'bad'] as const : []),

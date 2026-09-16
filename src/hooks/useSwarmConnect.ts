@@ -4,6 +4,7 @@ import { erc20Abi } from 'viem'
 import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
 import { useNodeWallet } from './useNodeWallet'
+import { useXbzzAllowance } from './useXbzzAllowance'
 import { useSwarmConnectConfig } from '../context/SwarmConnectProvider'
 import {
   GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY, BEE_API_KEY_STORAGE_KEY,
@@ -78,6 +79,7 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     isLoading: isConnected && (balanceLoading || (requirements.xbzz && bzzLoading)),
     hasGas, hasBzz,
   }
+  const allowance = useXbzzAllowance(requirements.xbzzAllowance)
 
   return {
     beeNode,
@@ -93,10 +95,12 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     isOnGnosis,
     chainId,
     balance,
+    allowance,
     isFullyConnected:
       isConnected && isOnGnosis && beeNode.isRunning &&
       (!requirements.xdai || hasGas) &&
       (!requirements.xbzz || hasBzz) &&
+      (!requirements.xbzzAllowance || allowance.isApproved) &&
       (!requirements.nodeWallet || nodeWallet.isFunded) &&
       (!requirements.postageStamp || !!stamps.selectedStampId),
   }
