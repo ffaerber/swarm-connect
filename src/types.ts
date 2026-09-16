@@ -37,9 +37,10 @@ export interface XbzzAllowanceRequirement {
   /** The contract that spends the user's xBZZ (only the dApp knows it). */
   spender: `0x${string}`
   /**
-   * Allowance in PLUR (1 xBZZ = 1e16) that counts as approved, and the amount
-   * approve() asks for — a bounded approval for users who dislike infinite
-   * ones. Default: any non-zero allowance counts; approve() asks for maxUint256.
+   * Allowance in PLUR (1 xBZZ = 1e16) that counts as approved; also the lower
+   * end of the modal's approval slider and what approve() asks for when called
+   * without an amount. Default: 1 xBZZ (`10n ** 16n`). `0n` lets any non-zero
+   * allowance count.
    */
   minimum?: bigint
 }
@@ -115,13 +116,26 @@ export interface BalanceState {
 }
 
 export interface XbzzAllowanceState {
-  /** Current allowance in PLUR (undefined until loaded, or when not required). */
+  /**
+   * Current allowance in PLUR — what the spender can still take (it goes down
+   * as the contract spends). Undefined until loaded, or when not required.
+   */
   value?: bigint
+  /**
+   * The amount last approved from this browser, when known and not yet
+   * exceeded by `value` — so `value` of `approved` is what is left.
+   */
+  approved?: bigint
+  /** The resolved minimum in PLUR (the requirement's, else 1 xBZZ); 0n = any non-zero. */
+  minimum: bigint
   isLoading: boolean
-  /** True when on Gnosis and the allowance meets the requirement's minimum (any non-zero by default). */
+  /** True when on Gnosis and the allowance is at least `minimum` (and non-zero). */
   isApproved: boolean
-  /** Sends approve(spender, minimum ?? maxUint256) from the connected wallet. */
-  approve: () => void
+  /**
+   * Sends approve(spender, amount) from the connected wallet — also how an
+   * existing approval is changed. amount defaults to minimum (maxUint256 when 0n).
+   */
+  approve: (amount?: bigint) => void
   /** True while the approval is being signed or mined. */
   isApproving: boolean
   error?: string

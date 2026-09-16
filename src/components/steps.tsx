@@ -8,7 +8,7 @@ import { gnosis } from 'wagmi/chains'
 import { erc20Abi, formatUnits, maxUint256, parseEther, parseUnits } from 'viem'
 import type { BaseError } from 'viem'
 import {
-  GNOSIS_CHAIN_ID, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS,
+  GNOSIS_CHAIN_ID, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS, UNLIMITED_ALLOWANCE,
   DEFAULT_FUND_XDAI, DEFAULT_FUND_XBZZ,
 } from '../constants'
 import type { BalanceState, BeeNodeStatus, NodeWalletState, PostageStamp, PostageStampsState, XbzzAllowanceState } from '../types'
@@ -185,6 +185,10 @@ export function BalanceStep({ locked, balance, showXdai, showBzz }: {
 export function AllowanceStep({ locked, lockedHint, allowance, spender }: {
   locked: boolean; lockedHint: string; allowance: XbzzAllowanceState; spender: string
 }) {
+  const [editing, setEditing] = useState(false)
+  // Close the editor once a changed allowance lands.
+  useEffect(() => { setEditing(false) }, [allowance.value])
+
   if (locked) return <LockedNotice>{lockedHint}</LockedNotice>
   const shortSpender = `${spender.slice(0, 8)}…${spender.slice(-6)}`
 
@@ -196,27 +200,151 @@ export function AllowanceStep({ locked, lockedHint, allowance, spender }: {
     )
   }
 
-  // An infinite approval is never fully spent down; show it as such.
-  const amount = allowance.value === undefined ? '—'
-    : allowance.value >= maxUint256 / 2n ? 'unlimited'
-    : `${Number(formatUnits(allowance.value, BZZ_DECIMALS)).toLocaleString('en-US', { maximumFractionDigits: 4 })} xBZZ`
-
   if (allowance.isApproved) {
     return (
-      <StatusRow tone="ok" title="xBZZ spending approved" sub={`${shortSpender} · ${amount}`}>
-        <Badge tone="ok">approved</Badge>
-      </StatusRow>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <StatusRow tone="ok" title="xBZZ spending approved" sub={shortSpender}>
+          {!editing && <GhostBtn onClick={() => setEditing(true)}>change</GhostBtn>}
+        </StatusRow>
+        <AllowanceMeter allowance={allowance} />
+        {editing && <ApprovalEditor allowance={allowance} onCancel={() => setEditing(false)} />}
+      </div>
     )
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <StatusRow tone="warn" title="Approval needed" sub={`${shortSpender} · allowance ${amount}`} />
+      <StatusRow tone="warn" title="Approval needed" sub={shortSpender} />
+      {!!allowance.value && <AllowanceMeter allowance={allowance} />}
       <div style={hintStyle}>
         This dApp's contract pays with xBZZ from your browser wallet, so it needs your approval to spend it.
+        {allowance.minimum > 0n && <> It needs at least {formatBzz(allowance.minimum)} xBZZ.</>}
       </div>
-      <PrimaryBtn onClick={allowance.approve} pending={allowance.isApproving} block>
-        {allowance.isApproving ? 'approving…' : 'approve xBZZ'}
-      </PrimaryBtn>
+      <ApprovalEditor allowance={allowance} />
+    </div>
+  )
+}
+
+const isUnlimited = (v: bigint) => v >= UNLIMITED_ALLOWANCE
+
+function formatBzz(v: bigint): string {
+  return Number(formatUnits(v, BZZ_DECIMALS)).toLocaleString('en-US', { maximumFractionDigits: 4 })
+}
+
+/** Plain decimal string for an input (no grouping, at most 4 decimals). */
+function toInput(n: number): string {
+  return String(Math.round(n * 1e4) / 1e4)
+}
+
+/** What the spender can still take, against what was approved when known. */
+function AllowanceMeter({ allowance }: { allowance: XbzzAllowanceState }) {
+  const left = allowance.value ?? 0n
+  if (isUnlimited(left)) {
+    return (
+      <div style={{ ...hintStyle, fontFamily: 'var(--font-mono)' }}>
+        <span style={{ color: 'var(--fg-soft)' }}>unlimited</span> · the contract can spend any amount
+      </div>
+    )
+  }
+  const of = allowance.approved
+  const pct = of ? Number((left * 10000n) / of) / 100 : undefined
+  const low = left < allowance.minimum
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+        <span style={{ color: low ? 'var(--warn)' : 'var(--fg)' }}>{formatBzz(left)} xBZZ left</span>
+        {of !== undefined && <span style={{ color: 'var(--fg-muted)' }}>of {formatBzz(of)} approved</span>}
+      </div>
+      {pct !== undefined && (
+        <div style={{ height: 6, borderRadius: 3, background: 'var(--bunker)', border: '1px solid var(--line)', overflow: 'hidden' }}>
+          <div style={{
+            width: `${pct}%`, height: '100%', background: low ? 'var(--warn)' : 'var(--ok)',
+            boxShadow: `0 0 8px ${low ? 'var(--warn)' : 'var(--ok)'}`, transition: 'width .3s var(--ease)',
+          }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Pick an amount with a slider (or type it, or go unlimited) and approve it. */
+function ApprovalEditor({ allowance, onCancel }: { allowance: XbzzAllowanceState; onCancel?: () => void }) {
+  const { address } = useAccount()
+  const walletBzz = useReadContract({
+    abi: erc20Abi, address: BZZ_TOKEN_ADDRESS, functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: GNOSIS_CHAIN_ID, query: { enabled: !!address },
+  }).data
+
+  const toNum = (v?: bigint) => v === undefined ? undefined : Number(formatUnits(v, BZZ_DECIMALS))
+  const finite = (v?: bigint) => v !== undefined && v > 0n && !isUnlimited(v) ? toNum(v) : undefined
+  const current = finite(allowance.value)
+  const minX = toNum(allowance.minimum)!
+  // Start from the last approved amount (to top a spent allowance back up),
+  // else what is left, never below the minimum.
+  const [draft, setDraft] = useState(() => toInput(Math.max(finite(allowance.approved) ?? current ?? minX, minX) || 1))
+  const [unlimited, setUnlimited] = useState(() =>
+    allowance.value !== undefined && allowance.value > 0n ? isUnlimited(allowance.value) : false)
+  const draftX = Number(draft)
+  // Slider spans the minimum up to what the wallet holds (or the current
+  // allowance, if larger); typing a bigger amount stretches it.
+  const top = Math.max(toNum(walletBzz) ?? 0, current ?? 0, Number.isFinite(draftX) ? draftX : 0)
+  const maxX = top > minX ? top : Math.max(minX * 10, 1)
+
+  const amount = unlimited ? maxUint256 : safeParse(() => parseUnits(draft.trim(), BZZ_DECIMALS))
+  const tooLow = amount !== undefined && (amount === 0n || amount < allowance.minimum)
+  const unchanged = amount !== undefined && allowance.value !== undefined && amount === allowance.value
+  const busy = allowance.isApproving
+  const aboveWallet = !unlimited && amount !== undefined && walletBzz !== undefined && amount > walletBzz
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px',
+      border: '1px solid var(--line)', borderRadius: 8, background: 'var(--raised)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderRadius: 6,
+          border: '1px solid var(--line-2)', background: unlimited || busy ? 'var(--bunker)' : 'var(--surface)',
+        }}>
+          <input inputMode="decimal" value={unlimited ? '∞' : draft} disabled={unlimited || busy} spellCheck={false}
+            onChange={e => setDraft(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
+              color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '8px 0',
+            }} />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)', flexShrink: 0 }}>xBZZ</span>
+        </div>
+        <button onClick={() => setUnlimited(u => !u)} disabled={busy} aria-pressed={unlimited} style={{
+          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase',
+          padding: '8px 10px', borderRadius: 6, cursor: busy ? 'default' : 'pointer', whiteSpace: 'nowrap',
+          border: `1px solid ${unlimited ? 'var(--line-orange)' : 'var(--line-2)'}`,
+          background: unlimited ? 'var(--accent-wash)' : 'transparent',
+          color: unlimited ? 'var(--accent-bright)' : 'var(--fg-muted)',
+        }}>∞ unlimited</button>
+      </div>
+      <input type="range" min={minX} max={maxX} step={maxX / 100}
+        value={Math.min(Math.max(Number.isFinite(draftX) ? draftX : minX, minX), maxX)}
+        disabled={unlimited || busy}
+        onChange={e => setDraft(toInput(Number(e.target.value)))}
+        style={{ width: '100%', accentColor: 'var(--accent)', opacity: unlimited ? .4 : 1, margin: 0 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--fg-faint)' }}>
+        <span>{toInput(minX)}{allowance.minimum > 0n ? ' min' : ''}</span>
+        <span>{toInput(maxX)}{walletBzz !== undefined && toNum(walletBzz) === maxX ? ' in wallet' : ''}</span>
+      </div>
+      {aboveWallet && (
+        <div style={hintStyle}>More than your wallet holds — fine, the contract can only spend what is there.</div>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <PrimaryBtn onClick={() => { if (amount !== undefined) allowance.approve(amount) }}
+          pending={busy || amount === undefined || tooLow || unchanged} style={{ flex: 1 }}>
+          {busy ? 'approving…'
+            : amount === undefined ? 'enter an amount'
+            : tooLow ? (allowance.minimum > 0n ? `min ${formatBzz(allowance.minimum)} xBZZ` : 'enter an amount')
+            : unchanged ? 'already approved'
+            : `approve ${unlimited ? 'unlimited' : `${formatBzz(amount)} xBZZ`}`}
+        </PrimaryBtn>
+        {onCancel && !busy && <GhostBtn onClick={onCancel}>cancel</GhostBtn>}
+      </div>
       {allowance.error && (
         <div style={{ fontSize: 12, color: 'var(--bad)', fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
           approval failed: {allowance.error}

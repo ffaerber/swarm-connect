@@ -39,10 +39,10 @@ const SCENARIOS: Scenario[] = [
   {
     id: 'allowance',
     title: 'Contract spends xBZZ — approval',
-    desc: 'The dApp contract pulls xBZZ from the user, so it needs an ERC-20 allowance. Demo spender is the burn address with a 0.0001 xBZZ bounded approval.',
+    desc: 'The dApp contract pulls xBZZ from the user, so it needs an ERC-20 allowance. Demo spender is the burn address (nothing can spend it), default minimum of 1 xBZZ — pick an amount with the slider, then change it.',
     requirements: {
       xdai: true, xbzz: true, postageStamp: false,
-      xbzzAllowance: { spender: '0x000000000000000000000000000000000000dEaD', minimum: 10n ** 12n },
+      xbzzAllowance: { spender: '0x000000000000000000000000000000000000dEaD' },
     },
   },
   {
@@ -143,7 +143,11 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
               <Row label="Wallet xBZZ" mono>{balance.bzz !== undefined ? balance.bzz.toFixed(4) : '—'}</Row>
             )}
             {requirements.xbzzAllowance && (
-              <Row label="xBZZ allowance" mono>{allowance.value !== undefined ? allowance.value.toString() : '—'} PLUR</Row>
+              <Row label="xBZZ allowance left" mono>
+                {allowance.value === undefined ? '—'
+                  : allowance.value >= 2n ** 255n ? 'unlimited'
+                  : `${Number(allowance.value) / 1e16}${allowance.approved !== undefined ? ` of ${Number(allowance.approved) / 1e16}` : ''} xBZZ`}
+              </Row>
             )}
             <Row label="Bee node" mono>{beeApiUrl}</Row>
             <Row label="Bee version">{beeNode.version ?? '—'}</Row>

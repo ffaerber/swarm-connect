@@ -26,7 +26,7 @@ Open it on any Bee node at `<bee>/bzz/476bbf2c20715a1003aaf3fa7a65dd7c36285a9cd6
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
 - 🎛️ **Per-dApp requirements** (`requirements: { xdai, xbzz, xbzzAllowance, nodeWallet, postageStamp }`) — each dApp declares what "connected" means for it. Disabled requirements drop their step from the modal and from `isFullyConnected`. E.g. a dApp that manages stamps itself uses `{ xdai: true, postageStamp: false }`.
 - 🪙 **xBZZ as a platform token** (`xbzz: true`) — require the *user's connected wallet* to hold xBZZ (e.g. a token your platform uses). This checks the wallet balance and is independent of postage stamps.
-- ✅ **xBZZ spending approval** (`xbzzAllowance: { spender }`) — for dApps whose contract pulls xBZZ from the user: a gated step that has the user `approve()` your contract, so the button never says "connected" while writes would revert.
+- ✅ **xBZZ spending approval** (`xbzzAllowance: { spender }`) — for dApps whose contract pulls xBZZ from the user: a gated step where the user picks an amount with a slider (or unlimited) and approves your contract, can change it later, and sees how much is left to spend — so the button never says "connected" while writes would revert.
 - 💸 **Node-wallet funding** (`nodeWallet: true`) — for dApps that buy stamps themselves: shows the Bee node's own wallet (`/wallet`) and lets the user top it up with xDAI + xBZZ from their connected wallet (one-time setup). The dApp then buys stamps programmatically via `stamps.createStamp()` — the modal itself never purchases.
 - ✅ **At-a-glance status** — the button shows status dots for every gated step.
 - 🧩 **Headless hooks** — use the `useSwarmConnect` / `useBeeNode` / `usePostageStamps` / `useNodeWallet` / `useXbzzAllowance` hooks to build your own UI.
@@ -122,7 +122,7 @@ function Status() {
     isOnGnosis,
     chainId,
     balance,          // { xdai?, bzz?, isLoading, hasGas, hasBzz } — connected wallet on Gnosis
-    allowance,        // { value?, isLoading, isApproved, approve(), isApproving, error? } — xBZZ allowance for xbzzAllowance.spender
+    allowance,        // { value?, approved?, minimum?, isLoading, isApproved, approve(amount?), isApproving, error? } — xBZZ allowance for xbzzAllowance.spender
     isFullyConnected, // wallet + Gnosis + node + every enabled requirement
   } = useSwarmConnect({
     beeApiUrl: 'http://localhost:1633',
@@ -172,11 +172,13 @@ const { address, xdai, xbzz, isLoading, error, isFunded, refresh } =
 The connected wallet's xBZZ allowance for a spender contract, and a way to approve it. Pass `false` to turn it off.
 
 ```tsx
-const { value, isLoading, isApproved, approve, isApproving, error } =
-  useXbzzAllowance({ spender: '0xYourContract', minimum: 10n ** 16n /* optional, PLUR */ })
+const { value, approved, minimum, isLoading, isApproved, approve, isApproving, error } =
+  useXbzzAllowance({ spender: '0xYourContract', minimum: 5n * 10n ** 16n /* optional, PLUR; default 1 xBZZ */ })
 ```
 
-`approve()` sends `approve(spender, minimum ?? maxUint256)` from the connected wallet and re-reads the allowance once it is mined.
+`approve(amount?)` sends `approve(spender, amount)` from the connected wallet — calling it again changes the approval — and re-reads the allowance once it is mined. `amount` defaults to `minimum` (`maxUint256` when `minimum` is `0n`).
+
+`value` is what the spender can still take; it goes down as the contract spends. The chain does not record the original amount, so `approved` is the amount last approved from this browser (kept in `localStorage`), and is left undefined when unknown or when the allowance was raised elsewhere since. `value` of `approved` is what is left.
 
 ## Configuration
 
@@ -213,7 +215,7 @@ Every dApp needs a connected wallet, the Gnosis chain, and a reachable Bee node 
 interface SwarmConnectRequirements {
   xdai?: boolean         // default true  — connected wallet must hold xDAI for gas
   xbzz?: boolean         // default false — connected wallet must hold xBZZ (a platform token)
-  xbzzAllowance?: { spender: `0x${string}`, minimum?: bigint } | false
+  xbzzAllowance?: { spender: `0x${string}`, minimum?: bigint /* PLUR, default 1 xBZZ */ } | false
                          // default false — connected wallet must have approved `spender` to spend its xBZZ
   nodeWallet?: boolean   // default false — the Bee node's own wallet funded (xDAI + xBZZ) to buy stamps
   postageStamp?: boolean // default true  — user must select a postage stamp in the modal
@@ -224,7 +226,7 @@ The two xBZZ-related options are deliberately separate, because they're about **
 
 - **`xdai`** — adds an xDAI row to the *Balance* step (Ethereum column): the connected wallet's native xDAI on Gnosis, with a faucet link while empty. Disable for read-only dApps that never transact from the user's wallet.
 - **`xbzz`** — adds an xBZZ row to the *Balance* step (Ethereum column): the **connected wallet's** xBZZ balance. Use this when your dApp requires the user to hold a platform token. This has nothing to do with postage stamps.
-- **`xbzzAllowance`** — adds the *xBZZ approval* step (Ethereum column, after *Balance*): the connected wallet's ERC-20 allowance for `spender`, with an approve button. Use it when your contract pulls xBZZ from the user (`transferFrom`) — without an allowance every write reverts. `approve()` asks for `maxUint256` by default; set `minimum` (in PLUR, 1 xBZZ = `10n ** 16n`) to require at least that allowance and approve exactly that amount instead. Without `minimum`, any non-zero allowance counts. The same state is on the hook as `allowance`, or standalone via `useXbzzAllowance({ spender })`.
+- **`xbzzAllowance`** — adds the *xBZZ approval* step (Ethereum column, after *Balance*): the connected wallet's ERC-20 allowance for `spender`, where the user picks an amount with a slider (from `minimum` up to their xBZZ balance, a typed amount, or unlimited) and approves it. Once approved, the step shows how much is left of the approved amount and a *change* button to approve a different amount. Use it when your contract pulls xBZZ from the user (`transferFrom`) — without an allowance every write reverts. `minimum` (in PLUR, 1 xBZZ = `10n ** 16n`) is the least allowance that counts and the slider's lower end. It defaults to **1 xBZZ**; set your own, e.g. `minimum: 5n * 10n ** 16n` for 5 xBZZ, or `0n` to accept any non-zero allowance. The same state is on the hook as `allowance`, or standalone via `useXbzzAllowance({ spender })`.
 - **`nodeWallet`** — adds the *Node wallet* step (Swarm column): the **Bee node's own** xDAI/xBZZ balances (`GET /wallet`), with a one-time top-up (a native xDAI transfer plus an ERC-20 xBZZ transfer to the node's address) while empty. Enable when your dApp buys stamps itself — purchasing is your dApp's job via `stamps.createStamp({ amount, depth, label })` (`POST /stamps/{amount}/{depth}`); the modal never buys.
 - **`postageStamp`** — adds the *Postage stamp* step where the user picks an existing stamp. Disable when the dApp manages stamps itself (e.g. it creates and tracks its own batches).
 
@@ -240,7 +242,7 @@ Example — a dApp that needs user gas but manages stamps itself:
 2. The wallet on the Gnosis chain (chain ID `100`).
 3. *(`xdai`)* A non-zero xDAI balance on the connected wallet.
 4. *(`xbzz`)* A non-zero xBZZ balance on the connected wallet.
-5. *(`xbzzAllowance`)* An xBZZ allowance for `spender` (≥ `minimum`, or non-zero).
+5. *(`xbzzAllowance`)* An xBZZ allowance for `spender` of at least `minimum` (default 1 xBZZ).
 6. A reachable Bee node (`/health` responds OK).
 7. *(`nodeWallet`)* The Bee node's wallet funded with xDAI + xBZZ.
 8. *(`postageStamp`)* A selected postage stamp.
