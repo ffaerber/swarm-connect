@@ -1,6 +1,6 @@
 {
   "name": "@ffaerber/swarm-connect",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "React connect-button wizard for Ethereum Swarm on Gnosis chain",
   "type": "module",
   "license": "MIT",
