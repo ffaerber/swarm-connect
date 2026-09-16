@@ -8,3 +8,6 @@ design/
 
 # Static example build (deployed to Swarm)
 example-dist/
+
+# npm pack output
+*.tgz

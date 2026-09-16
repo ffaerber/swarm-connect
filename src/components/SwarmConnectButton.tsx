@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useSwarmConnect } from '../hooks/useSwarmConnect'
 import { SwarmConnectModal } from './SwarmConnectModal'
 import { ensureSwarmStyles } from '../theme'
