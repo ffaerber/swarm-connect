@@ -7,7 +7,7 @@ import { ensureSwarmStyles } from '../theme'
 import { useNodeWallet } from '../hooks/useNodeWallet'
 import type { BeeNodeStatus, NodeWalletState, PostageStampsState, SwarmConnectRequirements } from '../types'
 import { BeeMark, StepLabel, StepDots, LockedNotice } from './atoms'
-import { NodeUrlInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep, NodeWalletStep } from './steps'
+import { NodeUrlInput, ApiKeyInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep, NodeWalletStep } from './steps'
 
 type StepState = 'locked' | 'active' | 'done'
 
@@ -27,6 +27,9 @@ interface SwarmConnectModalProps {
   stamps: PostageStampsState
   beeApiUrl: string
   setBeeApiUrl: (url: string) => void
+  /** API key for a bee-manager; the key field is hidden when setBeeApiKey is omitted. */
+  beeApiKey?: string
+  setBeeApiKey?: (key: string) => void
   /** Per-dApp requirements; disabled ones drop their step. See SwarmConnectRequirements. */
   requirements?: SwarmConnectRequirements
   /** Pass the instance from useSwarmConnect to share state; created internally otherwise. */
@@ -34,7 +37,7 @@ interface SwarmConnectModalProps {
 }
 
 export function SwarmConnectModal({
-  onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl,
+  onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl, beeApiKey = '', setBeeApiKey,
   requirements, nodeWallet: nodeWalletProp,
 }: SwarmConnectModalProps) {
   ensureSwarmStyles()
@@ -67,21 +70,22 @@ export function SwarmConnectModal({
 
   // Hooks must be unconditional — fall back to a local instance when the
   // caller doesn't share theirs (only consulted when req.nodeWallet is on).
-  const ownNodeWallet = useNodeWallet(beeApiUrl)
+  const ownNodeWallet = useNodeWallet(beeApiUrl, beeApiKey)
   const nodeWallet = nodeWalletProp ?? ownNodeWallet
 
-  // Probe the node on open / URL change, then load stamps (and, if required,
+  // Probe the node on open / URL or key change, then load stamps (and, if required,
   // the node's wallet) once it's online. Skip the mount-time probe when the
   // node is already known-running: check() momentarily resets isRunning,
   // which would needlessly re-lock all the steps on reopen.
   // Tracking the probed URL (rather than a "did mount" flag) also keeps
   // StrictMode's double-invoked mount effect from probing twice.
-  const probedUrl = useRef<string | undefined>(beeNode.isRunning ? beeApiUrl : undefined)
+  const probeTarget = `${beeApiUrl}\n${beeApiKey}`
+  const probed = useRef<string | undefined>(beeNode.isRunning ? probeTarget : undefined)
   useEffect(() => {
-    if (probedUrl.current === beeApiUrl) return
-    probedUrl.current = beeApiUrl
+    if (probed.current === probeTarget) return
+    probed.current = probeTarget
     beeNode.check()
-  }, [beeApiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beeApiUrl, beeApiKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!beeNode.isRunning) return
     stamps.fetchStamps()
@@ -143,6 +147,7 @@ export function SwarmConnectModal({
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <NodeUrlInput value={beeApiUrl} disabled={beeNode.isChecking} onSubmit={setBeeApiUrl} />
+            {setBeeApiKey && <ApiKeyInput value={beeApiKey} disabled={beeNode.isChecking} onSubmit={setBeeApiKey} />}
             <BeeNodeStep node={beeNode} beeApiUrl={beeApiUrl} />
           </div>
         ),

@@ -185,12 +185,37 @@ export function BalanceStep({ locked, balance, showXdai, showBzz }: {
 export function NodeUrlInput({ value, disabled, onSubmit }: {
   value: string; disabled: boolean; onSubmit: (url: string) => void
 }) {
+  return (
+    <CommitField value={value} disabled={disabled} onSubmit={onSubmit}
+      type="url" prompt=">" placeholder="http://localhost:1633" action="connect"
+      normalize={v => v.trim().replace(/\/+$/, '')} />
+  )
+}
+
+/** Optional key for a bee-manager; sent as `x-api-key`. Can be cleared. */
+export function ApiKeyInput({ value, disabled, onSubmit }: {
+  value: string; disabled: boolean; onSubmit: (key: string) => void
+}) {
+  return (
+    <CommitField value={value} disabled={disabled} onSubmit={onSubmit}
+      type="password" prompt="key" placeholder="api key · optional (bee-manager)"
+      action={value ? 'update' : 'use key'} allowEmpty
+      normalize={v => v.trim()} />
+  )
+}
+
+/** Text field that only applies its value on Enter or the action button. */
+function CommitField({ value, disabled, onSubmit, type, prompt, placeholder, action, allowEmpty, normalize }: {
+  value: string; disabled: boolean; onSubmit: (v: string) => void
+  type: 'url' | 'password'; prompt: string; placeholder: string; action: string
+  allowEmpty?: boolean; normalize: (v: string) => string
+}) {
   const [draft, setDraft] = useState(value)
   const [focus, setFocus] = useState(false)
   useEffect(() => { setDraft(value) }, [value])
-  const trimmed = draft.trim().replace(/\/+$/, '')
-  const dirty = trimmed !== value && trimmed.length > 0
-  const commit = () => { if (dirty) onSubmit(trimmed) }
+  const next = normalize(draft)
+  const dirty = next !== value && (allowEmpty || next.length > 0)
+  const commit = () => { if (dirty) onSubmit(next) }
   return (
     <div style={{ display: 'flex', gap: 8 }}>
       <div style={{
@@ -201,18 +226,19 @@ export function NodeUrlInput({ value, disabled, onSubmit }: {
         boxShadow: focus ? '0 0 0 3px var(--accent-wash)' : 'none',
         transition: 'all .15s var(--ease)',
       }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)' }}>&gt;</span>
-        <input type="url" value={draft} disabled={disabled} spellCheck={false} autoComplete="off"
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)' }}>{prompt}</span>
+        <input type={type} value={draft} disabled={disabled} spellCheck={false}
+          autoComplete={type === 'password' ? 'new-password' : 'off'}
           onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit() }}
-          placeholder="http://localhost:1633"
+          placeholder={placeholder}
           style={{
             flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
             color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '9px 0',
           }} />
       </div>
-      <GhostBtn onClick={commit} disabled={disabled || !dirty}>connect</GhostBtn>
+      <GhostBtn onClick={commit} disabled={disabled || !dirty}>{action}</GhostBtn>
     </div>
   )
 }
@@ -230,8 +256,9 @@ export function BeeNodeStep({ node, beeApiUrl }: {
   }
   if (node.isRunning) {
     return (
-      <StatusRow tone="ok" title="Node online" sub={`bee ${node.version ?? '—'}  ·  ${beeApiUrl}`}>
-        <Badge tone="ok">health ok</Badge>
+      <StatusRow tone="ok" title={node.isBeeManager ? 'bee-manager online' : 'Node online'}
+        sub={node.isBeeManager ? beeApiUrl : `bee ${node.version ?? '—'}  ·  ${beeApiUrl}`}>
+        <Badge tone="ok">{node.isBeeManager ? 'key ok' : 'health ok'}</Badge>
       </StatusRow>
     )
   }
@@ -245,8 +272,22 @@ export function BeeNodeStep({ node, beeApiUrl }: {
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <StatusRow tone="bad" title={node.isCorsBlocked ? 'Node blocks this origin' : 'Node unreachable'} sub={node.error} />
-      {node.isCorsBlocked ? (
+      <StatusRow tone="bad"
+        title={node.isCorsBlocked ? 'Node blocks this origin' : node.isBeeManager ? 'bee-manager not authorised' : 'Node unreachable'}
+        sub={node.error} />
+      {node.isBeeManager && !node.isCorsBlocked ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>enter an API key issued by this bee-manager above</span>
+          <GhostBtn onClick={node.check}>retry</GhostBtn>
+        </div>
+      ) : node.isCorsBlocked && node.isBeeManager ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>the bee-manager must allow this origin and the</span>
+          <code style={codeChip}>x-api-key</code>
+          <span>header</span>
+          <GhostBtn onClick={node.check}>retry</GhostBtn>
+        </div>
+      ) : node.isCorsBlocked ? (
         <div style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span>allow this site in the node config:</span>
           <code style={codeChip}>cors-allowed-origins: ["*"]</code>

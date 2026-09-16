@@ -22,6 +22,7 @@ Open it on any Bee node at `<bee>/bzz/476bbf2c20715a1003aaf3fa7a65dd7c36285a9cd6
 - 🦊 **Wallet connect** — wallet connection via [wagmi](https://wagmi.sh/) connectors, pinned to the Gnosis chain (ID `100`), with an xDAI balance/gas check.
 - 🐝 **Bee node detection** — checks a Bee node's `/health` endpoint and surfaces its version.
 - 🔧 **Editable node URL** — users can change the Bee node hostname from the modal and reconnect (defaults to `http://localhost:1633`); the chosen URL is persisted in `localStorage`.
+- 🔑 **bee-manager support** — enter an API key in the modal (or pass `beeApiKey`) to connect through a [bee-manager](https://github.com/ffaerber/bee-manager) instead of a bare Bee node. The key is sent as `x-api-key` and checked against `/stamps`.
 - 🎟️ **Postage stamp selection** — fetches available stamps from `/stamps` and lets the user pick one.
 - 🎛️ **Per-dApp requirements** (`requirements: { xdai, xbzz, nodeWallet, postageStamp }`) — each dApp declares what "connected" means for it. Disabled requirements drop their step from the modal and from `isFullyConnected`. E.g. a dApp that manages stamps itself uses `{ xdai: true, postageStamp: false }`.
 - 🪙 **xBZZ as a platform token** (`xbzz: true`) — require the *user's connected wallet* to hold xBZZ (e.g. a token your platform uses). This checks the wallet balance and is independent of postage stamps.
@@ -88,6 +89,7 @@ The connect button. Opens a dark-themed two-column modal — **Ethereum** (your 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `beeApiUrl` | `string` | last saved URL, else `http://localhost:1633` | Base URL of the Bee node API. Setting it pins the initial value and skips the `localStorage` restore. |
+| `beeApiKey` | `string` | — | Initial API key, sent as `x-api-key`. Needed for a bee-manager; see [Connecting through bee-manager](#connecting-through-bee-manager). |
 | `requirements` | `SwarmConnectRequirements` | `{ xdai: true, xbzz: false, nodeWallet: false, postageStamp: true }` | Which requirements this dApp needs; disabled ones drop their step. See [Requirements](#requirements). |
 | `label` | `string` | auto | Overrides the button label. Defaults to `Connect to Swarm`, or the truncated address once fully connected. |
 
@@ -111,6 +113,8 @@ function Status() {
     nodeWallet,       // { address?, xdai?, xbzz?, isLoading, error?, isFunded, refresh() } — the node's own wallet
     beeApiUrl,        // current Bee node URL
     setBeeApiUrl,     // change the Bee node URL at runtime, then re-check
+    beeApiKey,        // current API key ('' when none)
+    setBeeApiKey,     // change the API key at runtime, then re-check
     requirements,     // resolved { xdai, xbzz, nodeWallet, postageStamp } booleans
     isWalletConnected,
     address,
@@ -133,7 +137,8 @@ function Status() {
 Checks a Bee node's health.
 
 ```tsx
-const { isRunning, isChecking, version, error, check } = useBeeNode('http://localhost:1633')
+const { isRunning, isChecking, version, isBeeManager, error, check } =
+  useBeeNode('http://localhost:1633', apiKey /* optional */)
 ```
 
 ### `usePostageStamps(beeApiUrl?)`
@@ -143,7 +148,7 @@ Fetches, selects, and (for dApps that buy stamps themselves) creates postage sta
 ```tsx
 const { stamps, isLoading, error, fetchStamps, selectedStampId, selectStamp,
         createStamp, isCreating, createError } =
-  usePostageStamps('http://localhost:1633')
+  usePostageStamps('http://localhost:1633', apiKey /* optional */)
 
 // Buy a batch via the node (cost = 2^depth × amount PLUR, paid by the node wallet):
 const batchID = await createStamp({ amount: '1000000000', depth: 20, label: 'my-app' })
@@ -155,7 +160,7 @@ Reads the Bee node's **own** wallet — the one that pays for postage stamps —
 
 ```tsx
 const { address, xdai, xbzz, isLoading, error, isFunded, refresh } =
-  useNodeWallet('http://localhost:1633')
+  useNodeWallet('http://localhost:1633', apiKey /* optional */)
 ```
 
 `isFunded` is true once the node wallet holds both xDAI (gas) and xBZZ (storage payment) — funding it is a **one-time setup**; returning users with a funded node skip the step automatically.
@@ -165,11 +170,27 @@ const { address, xdai, xbzz, isLoading, error, isFunded, refresh } =
 ```ts
 interface SwarmConnectConfig {
   beeApiUrl?: string                      // initial Bee node URL; defaults to http://localhost:1633
+  beeApiKey?: string                      // initial API key (x-api-key), e.g. for a bee-manager
   requirements?: SwarmConnectRequirements // which steps this dApp needs; see below
 }
 ```
 
 `beeApiUrl` is only the **initial** value, and only when it is set — omit it and the last URL the user saved is restored instead. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
+
+### Connecting through bee-manager
+
+[bee-manager](https://github.com/ffaerber/bee-manager) sits in front of a Bee node and offers a Bee-compatible API, so the node doesn't have to be exposed to the internet. Every call except `/health` needs a per-app API key. Point `beeApiUrl` at the bee-manager and give the key, either as `beeApiKey` or by typing it into the Bee node step of the modal:
+
+```tsx
+<SwarmConnectButton beeApiUrl="https://stamps.example.org" requirements={{ nodeWallet: false }} />
+```
+
+- Once a key is set it goes out as `x-api-key` on every node request. With no key, no header is sent, so a plain Bee node needs no extra CORS setup.
+- `/health` doesn't check the key, so the connection check also calls `/stamps`. A `401` shows as *API key rejected*. A bee-manager with no key never counts as online.
+- `/stamps` returns only the batch that belongs to the key. bee-manager uses that batch for every upload, whatever batch ID the client sends.
+- The node wallet (`/wallet`) and buying stamps are admin-only on bee-manager, so leave `nodeWallet` off.
+- The key is saved in `localStorage` next to the URL, and removed from it when cleared. Only use a key that is meant to be used from a browser.
+- The browser sends a CORS preflight for the `x-api-key` header, so the bee-manager must answer `OPTIONS` and allow your origin and that header.
 
 ### Requirements
 

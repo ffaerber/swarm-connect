@@ -28,6 +28,12 @@ export interface SwarmConnectRequirements {
 
 export interface SwarmConnectConfig {
   beeApiUrl?: string
+  /**
+   * API key sent as `x-api-key` on every node request — needed when the URL
+   * points at a bee-manager instead of a bare Bee node. Initial value only;
+   * the user can change it in the modal.
+   */
+  beeApiKey?: string
   /** Per-dApp requirements; omitted fields use the defaults above. */
   requirements?: SwarmConnectRequirements
 }
@@ -39,6 +45,8 @@ export interface BeeNodeStatus {
   error?: string
   /** True when the node is reachable but its CORS config rejects this origin. */
   isCorsBlocked?: boolean
+  /** True when the URL is a bee-manager (Bee-compatible façade) rather than a Bee node. */
+  isBeeManager?: boolean
 }
 
 export interface PostageStamp {
@@ -107,6 +115,9 @@ export interface SwarmConnectState {
   stamps: PostageStampsState
   beeApiUrl: string
   setBeeApiUrl: (url: string) => void
+  /** API key sent as `x-api-key`; empty string when none. */
+  beeApiKey: string
+  setBeeApiKey: (key: string) => void
   /** The resolved requirements (config merged with defaults). */
   requirements: Required<SwarmConnectRequirements>
   nodeWallet: NodeWalletState

@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import type { CreateStampOptions, PostageStamp, PostageStampsState } from '../types'
-import { DEFAULT_BEE_API_URL } from '../constants'
+import { DEFAULT_BEE_API_URL, beeHeaders } from '../constants'
 
-export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStampsState {
+export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL, apiKey?: string): PostageStampsState {
   const [stamps, setStamps] = useState<PostageStamp[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>()
@@ -14,10 +14,12 @@ export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStamps
 
   // Stamps belong to one node: switching URLs must not leave the previous
   // node's list — or a selection the new node has never heard of, which would
-  // otherwise keep isFullyConnected true against the wrong batch.
-  const [lastUrl, setLastUrl] = useState(beeApiUrl)
-  if (lastUrl !== beeApiUrl) {
-    setLastUrl(beeApiUrl)
+  // otherwise keep isFullyConnected true against the wrong batch. On
+  // bee-manager the key picks the batch, so a new key counts as a switch too.
+  const target = `${beeApiUrl}\n${apiKey ?? ''}`
+  const [lastTarget, setLastTarget] = useState(target)
+  if (lastTarget !== target) {
+    setLastTarget(target)
     setStamps([])
     setSelectedStampId(undefined)
     setError(undefined)
@@ -34,6 +36,7 @@ export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStamps
     setError(undefined)
     try {
       const res = await fetch(`${beeApiUrl}/stamps`, {
+        headers: beeHeaders(apiKey),
         signal: AbortSignal.timeout(5000),
       })
       if (!fresh()) return
@@ -54,7 +57,7 @@ export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStamps
     } finally {
       if (fresh()) setIsLoading(false)
     }
-  }, [beeApiUrl])
+  }, [beeApiUrl, apiKey])
 
   const createStamp = useCallback(async ({ amount, depth, label }: CreateStampOptions) => {
     setIsCreating(true)
@@ -65,6 +68,7 @@ export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStamps
       // for it to mine, so this call can take a couple of minutes.
       const res = await fetch(`${beeApiUrl}/stamps/${amount}/${depth}${qs}`, {
         method: 'POST',
+        headers: beeHeaders(apiKey),
         signal: AbortSignal.timeout(240_000),
       })
       if (!res.ok) {
@@ -88,7 +92,7 @@ export function usePostageStamps(beeApiUrl = DEFAULT_BEE_API_URL): PostageStamps
     } finally {
       setIsCreating(false)
     }
-  }, [beeApiUrl, fetchStamps])
+  }, [beeApiUrl, apiKey, fetchStamps])
 
   return {
     stamps, isLoading, error, fetchStamps,

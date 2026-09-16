@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import type { NodeWalletState } from '../types'
-import { DEFAULT_BEE_API_URL, BZZ_DECIMALS } from '../constants'
+import { DEFAULT_BEE_API_URL, BZZ_DECIMALS, beeHeaders } from '../constants'
 
 interface WalletResponse {
   // Bee ≥ 1.6 field names, with fallbacks for older nodes.
@@ -19,7 +19,7 @@ const NEUTRAL: WalletData = { isLoading: false }
  * (GET /addresses). This is the wallet that pays for postage stamps —
  * separate from the user's browser wallet.
  */
-export function useNodeWallet(beeApiUrl = DEFAULT_BEE_API_URL): NodeWalletState {
+export function useNodeWallet(beeApiUrl = DEFAULT_BEE_API_URL, apiKey?: string): NodeWalletState {
   const [state, setState] = useState<WalletData>(NEUTRAL)
   const run = useRef(0)
 
@@ -43,9 +43,10 @@ export function useNodeWallet(beeApiUrl = DEFAULT_BEE_API_URL): NodeWalletState 
     // top-up must not unmount the funding form mid-transaction).
     commit(prev => ({ ...prev, isLoading: true, error: undefined }))
     try {
+      const headers = beeHeaders(apiKey)
       const [addrRes, walletRes] = await Promise.all([
-        fetch(`${beeApiUrl}/addresses`, { signal: AbortSignal.timeout(5000) }),
-        fetch(`${beeApiUrl}/wallet`, { signal: AbortSignal.timeout(5000) }),
+        fetch(`${beeApiUrl}/addresses`, { headers, signal: AbortSignal.timeout(5000) }),
+        fetch(`${beeApiUrl}/wallet`, { headers, signal: AbortSignal.timeout(5000) }),
       ])
       if (!addrRes.ok || !walletRes.ok) {
         commit({
@@ -70,7 +71,7 @@ export function useNodeWallet(beeApiUrl = DEFAULT_BEE_API_URL): NodeWalletState 
         error: `Cannot read node wallet at ${beeApiUrl}`,
       })
     }
-  }, [beeApiUrl])
+  }, [beeApiUrl, apiKey])
 
   return {
     ...state,

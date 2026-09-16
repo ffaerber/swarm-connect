@@ -17,10 +17,10 @@ interface SwarmConnectButtonProps extends SwarmConnectConfig {
 
 // `beeApiUrl` is deliberately left undefined when the prop is omitted: passing
 // a default here would shadow the URL the user last saved in localStorage.
-export function SwarmConnectButton({ beeApiUrl, requirements, label }: SwarmConnectButtonProps) {
+export function SwarmConnectButton({ beeApiUrl, beeApiKey, requirements, label }: SwarmConnectButtonProps) {
   ensureSwarmStyles()
   const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect({ beeApiUrl, requirements })
+  const swarm = useSwarmConnect({ beeApiUrl, beeApiKey, requirements })
   const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, nodeWallet, isFullyConnected, address } = swarm
 
   const [h, setH] = useState(false)
@@ -61,6 +61,8 @@ export function SwarmConnectButton({ beeApiUrl, requirements, label }: SwarmConn
           stamps={stamps}
           beeApiUrl={currentBeeApiUrl}
           setBeeApiUrl={setBeeApiUrl}
+          beeApiKey={swarm.beeApiKey}
+          setBeeApiKey={swarm.setBeeApiKey}
           requirements={swarm.requirements}
           nodeWallet={nodeWallet}
         />

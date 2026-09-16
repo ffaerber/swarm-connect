@@ -1,6 +1,19 @@
 export const GNOSIS_CHAIN_ID = 100
 export const DEFAULT_BEE_API_URL = 'http://localhost:1633'
 export const BEE_API_URL_STORAGE_KEY = 'swarm-connect:bee-api-url'
+export const BEE_API_KEY_STORAGE_KEY = 'swarm-connect:bee-api-key'
+
+/** `/health` reports this as its version when the URL is a bee-manager. */
+export const BEE_MANAGER_VERSION = 'bee-manager'
+
+/**
+ * Request headers for the node. A bare Bee node needs none; bee-manager wants
+ * the key as `x-api-key`. Omitted when empty — a custom header forces a CORS
+ * preflight, which a plain Bee node need not be configured for.
+ */
+export function beeHeaders(apiKey?: string): Record<string, string> | undefined {
+  return apiKey ? { 'x-api-key': apiKey } : undefined
+}
 
 /** xBZZ (bridged BZZ) ERC-20 on Gnosis chain. */
 export const BZZ_TOKEN_ADDRESS = '0xdBF3Ea6F5beE45c02255B2c26a16F300502F68da' as const

@@ -171,6 +171,8 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
           stamps={stamps}
           beeApiUrl={beeApiUrl}
           setBeeApiUrl={swarm.setBeeApiUrl}
+          beeApiKey={swarm.beeApiKey}
+          setBeeApiKey={swarm.setBeeApiKey}
           requirements={requirements}
           nodeWallet={nodeWallet}
         />
