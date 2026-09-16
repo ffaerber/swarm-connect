@@ -1,3 +1,5 @@
+import type { SwarmConnectRequirements } from './types'
+
 export const GNOSIS_CHAIN_ID = 100
 export const DEFAULT_BEE_API_URL = 'http://localhost:1633'
 export const BEE_API_URL_STORAGE_KEY = 'swarm-connect:bee-api-url'
@@ -25,9 +27,10 @@ export const DEFAULT_FUND_XDAI = '0.1'
 export const DEFAULT_FUND_XBZZ = '0.5'
 
 /** Default per-dApp requirements; see SwarmConnectRequirements. */
-export const DEFAULT_REQUIREMENTS = {
+export const DEFAULT_REQUIREMENTS: Required<SwarmConnectRequirements> = {
   xdai: true,
   xbzz: false,
+  xbzzAllowance: false,
   nodeWallet: false,
   postageStamp: true,
-} as const satisfies Record<string, boolean>
+}

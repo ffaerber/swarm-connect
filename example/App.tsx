@@ -37,6 +37,15 @@ const SCENARIOS: Scenario[] = [
     requirements: { xdai: true, xbzz: true, postageStamp: false },
   },
   {
+    id: 'allowance',
+    title: 'Contract spends xBZZ — approval',
+    desc: 'The dApp contract pulls xBZZ from the user, so it needs an ERC-20 allowance. Demo spender is the burn address with a 0.0001 xBZZ bounded approval.',
+    requirements: {
+      xdai: true, xbzz: true, postageStamp: false,
+      xbzzAllowance: { spender: '0x000000000000000000000000000000000000dEaD', minimum: 10n ** 12n },
+    },
+  },
+  {
     id: 'node-funding',
     title: 'dApp buys stamps — node funding',
     desc: 'The node wallet must be topped up with xDAI + xBZZ so the dApp can buy stamps via createStamp().',
@@ -90,7 +99,7 @@ export function App() {
 function ScenarioCard({ scenario }: { scenario: Scenario }) {
   const [open, setOpen] = useState(false)
   const swarm = useSwarmConnect({ requirements: scenario.requirements })
-  const { beeNode, stamps, nodeWallet, requirements, beeApiUrl, isWalletConnected, isOnGnosis, chainId, balance, isFullyConnected, address } = swarm
+  const { beeNode, stamps, nodeWallet, allowance, requirements, beeApiUrl, isWalletConnected, isOnGnosis, chainId, balance, isFullyConnected, address } = swarm
   const beeOverlay = useBeeOverlay(beeApiUrl, beeNode.isRunning)
   const selectedStamp = stamps.stamps.find(s => s.batchID === stamps.selectedStampId)
 
@@ -108,6 +117,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
             <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
               <ReqChip on={requirements.xdai}>xdai</ReqChip>
               <ReqChip on={requirements.xbzz}>xbzz</ReqChip>
+              <ReqChip on={!!requirements.xbzzAllowance}>approve</ReqChip>
               <ReqChip on={requirements.nodeWallet}>node$</ReqChip>
               <ReqChip on={requirements.postageStamp}>stamp</ReqChip>
             </span>
@@ -131,6 +141,9 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
             )}
             {requirements.xbzz && (
               <Row label="Wallet xBZZ" mono>{balance.bzz !== undefined ? balance.bzz.toFixed(4) : '—'}</Row>
+            )}
+            {requirements.xbzzAllowance && (
+              <Row label="xBZZ allowance" mono>{allowance.value !== undefined ? allowance.value.toString() : '—'} PLUR</Row>
             )}
             <Row label="Bee node" mono>{beeApiUrl}</Row>
             <Row label="Bee version">{beeNode.version ?? '—'}</Row>
@@ -156,6 +169,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
               <StepInline done={isOnGnosis}>Gnosis</StepInline>
               {requirements.xdai && <StepInline done={balance.hasGas}>xDAI</StepInline>}
               {requirements.xbzz && <StepInline done={balance.hasBzz}>xBZZ</StepInline>}
+              {requirements.xbzzAllowance && <StepInline done={allowance.isApproved}>Approved</StepInline>}
               <StepInline done={beeNode.isRunning}>Bee node</StepInline>
               {requirements.nodeWallet && <StepInline done={nodeWallet.isFunded}>Node funded</StepInline>}
               {requirements.postageStamp && <StepInline done={!!stamps.selectedStampId}>Stamp</StepInline>}
@@ -175,6 +189,7 @@ function ScenarioCard({ scenario }: { scenario: Scenario }) {
           setBeeApiKey={swarm.setBeeApiKey}
           requirements={requirements}
           nodeWallet={nodeWallet}
+          allowance={allowance}
         />
       )}
     </div>

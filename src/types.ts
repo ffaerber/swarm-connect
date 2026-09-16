@@ -14,6 +14,13 @@ export interface SwarmConnectRequirements {
    */
   xbzz?: boolean
   /**
+   * The user's wallet must have approved `spender` to spend its xBZZ (ERC-20
+   * allowance) — for dApps whose contract pulls xBZZ from the user, where
+   * holding it is not enough and every write reverts without an approval.
+   * Adds an approve step after the balance step. Default: false.
+   */
+  xbzzAllowance?: XbzzAllowanceRequirement | false
+  /**
    * The Bee node's own wallet must be funded with xDAI + xBZZ (adds the
    * node-wallet top-up step) so the dApp can buy stamps, e.g. via
    * stamps.createStamp(). Default: false.
@@ -24,6 +31,17 @@ export interface SwarmConnectRequirements {
    * dApp manages stamps itself. Default: true.
    */
   postageStamp?: boolean
+}
+
+export interface XbzzAllowanceRequirement {
+  /** The contract that spends the user's xBZZ (only the dApp knows it). */
+  spender: `0x${string}`
+  /**
+   * Allowance in PLUR (1 xBZZ = 1e16) that counts as approved, and the amount
+   * approve() asks for — a bounded approval for users who dislike infinite
+   * ones. Default: any non-zero allowance counts; approve() asks for maxUint256.
+   */
+  minimum?: bigint
 }
 
 export interface SwarmConnectConfig {
@@ -96,6 +114,19 @@ export interface BalanceState {
   hasBzz: boolean
 }
 
+export interface XbzzAllowanceState {
+  /** Current allowance in PLUR (undefined until loaded, or when not required). */
+  value?: bigint
+  isLoading: boolean
+  /** True when on Gnosis and the allowance meets the requirement's minimum (any non-zero by default). */
+  isApproved: boolean
+  /** Sends approve(spender, minimum ?? maxUint256) from the connected wallet. */
+  approve: () => void
+  /** True while the approval is being signed or mined. */
+  isApproving: boolean
+  error?: string
+}
+
 export interface NodeWalletState {
   /** The Bee node's own Ethereum address (from /addresses). */
   address?: string
@@ -126,5 +157,7 @@ export interface SwarmConnectState {
   isOnGnosis: boolean
   chainId?: number
   balance: BalanceState
+  /** The connected wallet's xBZZ allowance for `requirements.xbzzAllowance.spender`. */
+  allowance: XbzzAllowanceState
   isFullyConnected: boolean
 }

@@ -5,13 +5,13 @@ import {
   useSendTransaction, useWriteContract, useWaitForTransactionReceipt, useReadContract,
 } from 'wagmi'
 import { gnosis } from 'wagmi/chains'
-import { erc20Abi, parseEther, parseUnits } from 'viem'
+import { erc20Abi, formatUnits, maxUint256, parseEther, parseUnits } from 'viem'
 import type { BaseError } from 'viem'
 import {
   GNOSIS_CHAIN_ID, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS,
   DEFAULT_FUND_XDAI, DEFAULT_FUND_XBZZ,
 } from '../constants'
-import type { BalanceState, BeeNodeStatus, NodeWalletState, PostageStamp, PostageStampsState } from '../types'
+import type { BalanceState, BeeNodeStatus, NodeWalletState, PostageStamp, PostageStampsState, XbzzAllowanceState } from '../types'
 import { Spinner, Badge, StatusRow, GhostBtn, PrimaryBtn, LockedNotice } from './atoms'
 
 function txError(error: Error | null): string | undefined {
@@ -175,6 +175,52 @@ export function BalanceStep({ locked, balance, showXdai, showBzz }: {
         <PrimaryBtn onClick={() => window.open('https://www.ethswarm.org/get-bzz', '_blank', 'noopener')} block>
           get xBZZ
         </PrimaryBtn>
+      )}
+    </div>
+  )
+}
+
+/* ---------- STEP 3b — xBZZ allowance ----------------------- */
+
+export function AllowanceStep({ locked, lockedHint, allowance, spender }: {
+  locked: boolean; lockedHint: string; allowance: XbzzAllowanceState; spender: string
+}) {
+  if (locked) return <LockedNotice>{lockedHint}</LockedNotice>
+  const shortSpender = `${spender.slice(0, 8)}…${spender.slice(-6)}`
+
+  if (allowance.isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--raised)' }}>
+        <Spinner /><span style={{ color: 'var(--fg-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>reading allowance…</span>
+      </div>
+    )
+  }
+
+  // An infinite approval is never fully spent down; show it as such.
+  const amount = allowance.value === undefined ? '—'
+    : allowance.value >= maxUint256 / 2n ? 'unlimited'
+    : `${Number(formatUnits(allowance.value, BZZ_DECIMALS)).toLocaleString('en-US', { maximumFractionDigits: 4 })} xBZZ`
+
+  if (allowance.isApproved) {
+    return (
+      <StatusRow tone="ok" title="xBZZ spending approved" sub={`${shortSpender} · ${amount}`}>
+        <Badge tone="ok">approved</Badge>
+      </StatusRow>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <StatusRow tone="warn" title="Approval needed" sub={`${shortSpender} · allowance ${amount}`} />
+      <div style={hintStyle}>
+        This dApp's contract pays with xBZZ from your browser wallet, so it needs your approval to spend it.
+      </div>
+      <PrimaryBtn onClick={allowance.approve} pending={allowance.isApproving} block>
+        {allowance.isApproving ? 'approving…' : 'approve xBZZ'}
+      </PrimaryBtn>
+      {allowance.error && (
+        <div style={{ fontSize: 12, color: 'var(--bad)', fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
+          approval failed: {allowance.error}
+        </div>
       )}
     </div>
   )

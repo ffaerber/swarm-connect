@@ -5,9 +5,10 @@ import { erc20Abi } from 'viem'
 import { GNOSIS_CHAIN_ID, DEFAULT_REQUIREMENTS, BZZ_TOKEN_ADDRESS, BZZ_DECIMALS } from '../constants'
 import { ensureSwarmStyles } from '../theme'
 import { useNodeWallet } from '../hooks/useNodeWallet'
-import type { BeeNodeStatus, NodeWalletState, PostageStampsState, SwarmConnectRequirements } from '../types'
+import { useXbzzAllowance } from '../hooks/useXbzzAllowance'
+import type { BeeNodeStatus, NodeWalletState, PostageStampsState, SwarmConnectRequirements, XbzzAllowanceState } from '../types'
 import { BeeMark, StepLabel, StepDots, LockedNotice } from './atoms'
-import { NodeUrlInput, ApiKeyInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep, NodeWalletStep } from './steps'
+import { NodeUrlInput, ApiKeyInput, BeeNodeStep, StampStep, WalletStep, NetworkStep, BalanceStep, AllowanceStep, NodeWalletStep } from './steps'
 
 type StepState = 'locked' | 'active' | 'done'
 
@@ -34,11 +35,13 @@ interface SwarmConnectModalProps {
   requirements?: SwarmConnectRequirements
   /** Pass the instance from useSwarmConnect to share state; created internally otherwise. */
   nodeWallet?: NodeWalletState
+  /** Pass the instance from useSwarmConnect to share state; created internally otherwise. */
+  allowance?: XbzzAllowanceState
 }
 
 export function SwarmConnectModal({
   onClose, beeNode, stamps, beeApiUrl, setBeeApiUrl, beeApiKey = '', setBeeApiKey,
-  requirements, nodeWallet: nodeWalletProp,
+  requirements, nodeWallet: nodeWalletProp, allowance: allowanceProp,
 }: SwarmConnectModalProps) {
   ensureSwarmStyles()
   const req = { ...DEFAULT_REQUIREMENTS, ...requirements }
@@ -72,6 +75,9 @@ export function SwarmConnectModal({
   // caller doesn't share theirs (only consulted when req.nodeWallet is on).
   const ownNodeWallet = useNodeWallet(beeApiUrl, beeApiKey)
   const nodeWallet = nodeWalletProp ?? ownNodeWallet
+  // A shared instance still reads its own requirement, so only pass ours when there's none.
+  const ownAllowance = useXbzzAllowance(allowanceProp ? false : req.xbzzAllowance)
+  const allowance = allowanceProp ?? ownAllowance
 
   // Probe the node on open / URL or key change, then load stamps (and, if required,
   // the node's wallet) once it's online. Skip the mount-time probe when the
@@ -94,16 +100,18 @@ export function SwarmConnectModal({
 
   // Gated chain (disabled requirements are skipped). The Ethereum column must
   // be fully satisfied before the Swarm column unlocks:
-  // wallet → network → [xDAI + xBZZ] → node → [node wallet] → [stamp]
+  // wallet → network → [xDAI + xBZZ] → [allowance] → node → [node wallet] → [stamp]
   const gasOk = !req.xdai || hasGas
   const bzzOk = !req.xbzz || hasBzz
-  const walletSideOk = isOnGnosis && gasOk && bzzOk
+  const allowanceOk = !req.xbzzAllowance || allowance.isApproved
+  const walletSideOk = isOnGnosis && gasOk && bzzOk && allowanceOk
   const nodeFundOk = !req.nodeWallet || nodeWallet.isFunded
   const showBalance = req.xdai || req.xbzz
 
   const walletState: StepState = isConnected ? 'done' : 'active'
   const networkState: StepState = !isConnected ? 'locked' : isOnGnosis ? 'done' : 'active'
   const balanceState: StepState = !isOnGnosis ? 'locked' : (gasOk && bzzOk) ? 'done' : 'active'
+  const allowanceState: StepState = !(isOnGnosis && gasOk && bzzOk) ? 'locked' : allowance.isApproved ? 'done' : 'active'
   const nodeState: StepState = !walletSideOk ? 'locked' : beeNode.isRunning ? 'done' : 'active'
   const nodeWalletState: StepState = nodeState !== 'done' ? 'locked' : nodeWallet.isFunded ? 'done' : 'active'
   const stampState: StepState = !(nodeState === 'done' && nodeFundOk) ? 'locked'
@@ -111,7 +119,7 @@ export function SwarmConnectModal({
 
   const fullyConnected =
     isConnected && isOnGnosis && beeNode.isRunning &&
-    gasOk && bzzOk && nodeFundOk && (!req.postageStamp || !!stamps.selectedStampId)
+    gasOk && bzzOk && allowanceOk && nodeFundOk && (!req.postageStamp || !!stamps.selectedStampId)
 
   // Tear down the session (wallet AND bee node), then close the modal.
   const { disconnect: disconnectWallet } = useDisconnect()
@@ -137,11 +145,21 @@ export function SwarmConnectModal({
       hint: !isOnGnosis ? null : (gasOk && bzzOk) ? 'ok' : 'low',
       body: <BalanceStep locked={balanceState === 'locked'} balance={balance} showXdai={req.xdai} showBzz={req.xbzz} />,
     }] : []),
+    ...(req.xbzzAllowance ? [{
+      key: 'allowance', col: 'wallet' as const, title: 'xBZZ approval', state: allowanceState,
+      hint: allowanceState === 'locked' ? null : allowance.isApproved ? 'approved' : 'approve',
+      body: <AllowanceStep locked={allowanceState === 'locked'} allowance={allowance}
+        spender={req.xbzzAllowance.spender} lockedHint={showBalance
+          ? 'Satisfy the wallet balance to approve xBZZ spending.'
+          : 'Switch to the Gnosis chain to approve xBZZ spending.'} />,
+    }] : []),
     {
       key: 'node', col: 'node', title: 'Bee node', state: nodeState,
       hint: beeNode.isRunning ? beeNode.version : null,
       body: nodeState === 'locked'
-        ? <LockedNotice>{showBalance
+        ? <LockedNotice>{req.xbzzAllowance
+            ? 'Approve xBZZ spending to unlock the Bee node connection.'
+            : showBalance
             ? 'Satisfy the wallet balance to unlock the Bee node connection.'
             : 'Switch to the Gnosis chain to unlock the Bee node connection.'}</LockedNotice>
         : (
