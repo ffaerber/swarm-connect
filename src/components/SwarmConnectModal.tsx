@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAccount, useBalance, useDisconnect, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
