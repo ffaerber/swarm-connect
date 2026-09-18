@@ -6,6 +6,13 @@ export const BEE_API_URL_STORAGE_KEY = 'swarm-connect:bee-api-url'
 export const BEE_API_KEY_STORAGE_KEY = 'swarm-connect:bee-api-key'
 /** Prefix for the last xBZZ amount approved per owner + spender. */
 export const XBZZ_APPROVED_STORAGE_PREFIX = 'swarm-connect:xbzz-approved'
+/**
+ * Prefix for the batch selected on a given node. Per node rather than global:
+ * a batch is meaningless on a node that has never heard of it, and on
+ * bee-manager the API key decides which batch a caller gets, so two keys
+ * against the same URL are two different selections.
+ */
+export const SELECTED_STAMP_STORAGE_PREFIX = 'swarm-connect:stamp'
 
 /** `/health` reports this as its version when the URL is a bee-manager. */
 export const BEE_MANAGER_VERSION = 'bee-manager'
