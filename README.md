@@ -116,6 +116,7 @@ function Status() {
     setBeeApiUrl,     // change the Bee node URL at runtime, then re-check
     beeApiKey,        // current API key ('' when none)
     setBeeApiKey,     // change the API key at runtime, then re-check
+    read,             // { url, headers?, isNode, gatewayUrl, fetch(path, init?) } — where downloads go; see below
     requirements,     // resolved { xdai, xbzz, xbzzAllowance, nodeWallet, postageStamp }
     isWalletConnected,
     address,
@@ -186,11 +187,31 @@ const { value, approved, minimum, isLoading, isApproved, approve, isApproving, e
 interface SwarmConnectConfig {
   beeApiUrl?: string                      // initial Bee node URL; defaults to http://localhost:1633
   beeApiKey?: string                      // initial API key (x-api-key), e.g. for a bee-manager
+  gatewayUrl?: string                     // reads while no node is connected; default https://api.gateway.ethswarm.org, '' disables
   requirements?: SwarmConnectRequirements // which steps this dApp needs; see below
 }
 ```
 
 `beeApiUrl` is only the **initial** value, and only when it is set — omit it and the last URL the user saved is restored instead. Users can edit the node URL from the modal's Bee node step (or programmatically via `setBeeApiUrl` from `useSwarmConnect`), which re-checks the node at the new address and persists the choice in `localStorage` so it survives sign-out / sign-in. This is useful when the Bee node runs on a non-default host or port.
+
+### Reading content
+
+`read` says where downloads should go. Until the user's node is running it points at the public gateway (`gatewayUrl`), so a visitor who never connects still sees everything. Once the node is up, reads switch to it automatically — the user's own bandwidth and cache, and the API key for a bee-manager comes along.
+
+```tsx
+const { read } = useSwarmConnect()
+
+// Simplest: fetch through it. Headers are added for you; if the node fails
+// (network error or 5xx) the request is retried once through the gateway.
+const res = await read.fetch(`/bzz/${reference}`)
+
+// Or build a client from it, e.g. bee-js:
+const reader = useMemo(() => new Bee(read.url, { headers: read.headers }), [read.url, read.headers])
+```
+
+- A `404` is returned as is, not retried on the gateway: it is the node's answer that the content cannot be retrieved.
+- `read.headers` is set when reading from a node with an API key. An `<img src>` cannot send headers, so load images with `read.fetch` and show them via `URL.createObjectURL` when a key is in use.
+- `useSwarmRead(beeApiUrl, beeApiKey, isNodeRunning, gatewayUrl?)` is the same logic on its own, for apps that track the node themselves.
 
 ### Connecting through bee-manager
 

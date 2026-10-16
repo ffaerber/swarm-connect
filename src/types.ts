@@ -53,8 +53,40 @@ export interface SwarmConnectConfig {
    * the user can change it in the modal.
    */
   beeApiKey?: string
+  /**
+   * Gateway for reads while the user has no running node (see `read`).
+   * Default: https://api.gateway.ethswarm.org. Empty string disables it, so
+   * reads always target the node.
+   */
+  gatewayUrl?: string
   /** Per-dApp requirements; omitted fields use the defaults above. */
   requirements?: SwarmConnectRequirements
+}
+
+/**
+ * Where to read Swarm content from: the user's node when it is running, the
+ * public gateway otherwise. Use it for every download, so content follows the
+ * user's connection instead of being pinned to one source.
+ */
+export interface SwarmReadState {
+  /** Base URL for reads, without a trailing slash — e.g. for a Bee client. */
+  url: string
+  /**
+   * Headers reads from `url` need: `x-api-key` for a bee-manager, undefined
+   * for the gateway or a keyless node. A plain `<img src>` cannot send them;
+   * load through `fetch` when a key is set.
+   */
+  headers?: Record<string, string>
+  /** True when reads go through the user's node rather than the gateway. */
+  isNode: boolean
+  /** The resolved gateway URL ('' when disabled). */
+  gatewayUrl: string
+  /**
+   * fetch() for a Swarm path such as `/bzz/<ref>` against `url`, with
+   * `headers` added. From the node, a network error or 5xx is retried once
+   * through the gateway; a 404 is returned as is.
+   */
+  fetch: (path: string, init?: RequestInit) => Promise<Response>
 }
 
 export interface BeeNodeStatus {
@@ -163,6 +195,8 @@ export interface SwarmConnectState {
   /** API key sent as `x-api-key`; empty string when none. */
   beeApiKey: string
   setBeeApiKey: (key: string) => void
+  /** Where downloads should go: the user's node when connected, the gateway otherwise. */
+  read: SwarmReadState
   /** The resolved requirements (config merged with defaults). */
   requirements: Required<SwarmConnectRequirements>
   nodeWallet: NodeWalletState

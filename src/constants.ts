@@ -2,6 +2,8 @@ import type { SwarmConnectRequirements } from './types'
 
 export const GNOSIS_CHAIN_ID = 100
 export const DEFAULT_BEE_API_URL = 'http://localhost:1633'
+/** Public gateway used for reads while no node is connected. */
+export const DEFAULT_GATEWAY_URL = 'https://api.gateway.ethswarm.org'
 export const BEE_API_URL_STORAGE_KEY = 'swarm-connect:bee-api-url'
 export const BEE_API_KEY_STORAGE_KEY = 'swarm-connect:bee-api-key'
 /** Prefix for the last xBZZ amount approved per owner + spender. */

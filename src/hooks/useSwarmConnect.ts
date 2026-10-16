@@ -5,6 +5,7 @@ import { useBeeNode } from './useBeeNode'
 import { usePostageStamps } from './usePostageStamps'
 import { useNodeWallet } from './useNodeWallet'
 import { useXbzzAllowance } from './useXbzzAllowance'
+import { useSwarmRead } from './useSwarmRead'
 import { useSwarmConnectConfig } from '../context/SwarmConnectProvider'
 import {
   GNOSIS_CHAIN_ID, DEFAULT_BEE_API_URL, BEE_API_URL_STORAGE_KEY, BEE_API_KEY_STORAGE_KEY,
@@ -48,6 +49,10 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
 
   const requirements = { ...DEFAULT_REQUIREMENTS, ...providerConfig?.requirements, ...config.requirements }
   const beeNode = useBeeNode(beeApiUrl, beeApiKey)
+  const read = useSwarmRead(
+    beeApiUrl, beeApiKey, beeNode.isRunning,
+    config.gatewayUrl ?? providerConfig?.gatewayUrl,
+  )
   const stamps = usePostageStamps(beeApiUrl, beeApiKey)
   const nodeWallet = useNodeWallet(beeApiUrl, beeApiKey)
   // useAccount().chainId is the wallet's actual chain (undefined when
@@ -88,6 +93,7 @@ export function useSwarmConnect(config: SwarmConnectConfig = {}): SwarmConnectSt
     setBeeApiUrl,
     beeApiKey,
     setBeeApiKey,
+    read,
     requirements,
     nodeWallet,
     isWalletConnected: isConnected,
