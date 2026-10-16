@@ -13,14 +13,31 @@ const HEX_BUTTON = 'polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 1
 
 interface SwarmConnectButtonProps extends SwarmConnectConfig {
   label?: string
+  /**
+   * The app's own useSwarmConnect() instance, to share one state between the
+   * button and the rest of the app (e.g. so `read` switches to the node the
+   * user just connected in this modal). The config props are then ignored —
+   * they belong to that instance. Created internally when omitted.
+   */
+  swarm?: SwarmConnectState
+}
+
+export function SwarmConnectButton({ swarm, ...props }: SwarmConnectButtonProps) {
+  return swarm
+    ? <ButtonView swarm={swarm} label={props.label} />
+    : <OwnStateButton {...props} />
 }
 
 // `beeApiUrl` is deliberately left undefined when the prop is omitted: passing
 // a default here would shadow the URL the user last saved in localStorage.
-export function SwarmConnectButton({ beeApiUrl, beeApiKey, requirements, label }: SwarmConnectButtonProps) {
+function OwnStateButton({ beeApiUrl, beeApiKey, gatewayUrl, requirements, label }: Omit<SwarmConnectButtonProps, 'swarm'>) {
+  const swarm = useSwarmConnect({ beeApiUrl, beeApiKey, gatewayUrl, requirements })
+  return <ButtonView swarm={swarm} label={label} />
+}
+
+function ButtonView({ swarm, label }: { swarm: SwarmConnectState; label?: string }) {
   ensureSwarmStyles()
   const [open, setOpen] = useState(false)
-  const swarm = useSwarmConnect({ beeApiUrl, beeApiKey, requirements })
   const { beeApiUrl: currentBeeApiUrl, setBeeApiUrl, beeNode, stamps, nodeWallet, isFullyConnected, address } = swarm
 
   const [h, setH] = useState(false)

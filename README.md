@@ -93,6 +93,8 @@ The connect button. Opens a dark-themed two-column modal — **Ethereum** (your 
 | `beeApiKey` | `string` | — | Initial API key, sent as `x-api-key`. Needed for a bee-manager; see [Connecting through bee-manager](#connecting-through-bee-manager). |
 | `requirements` | `SwarmConnectRequirements` | `{ xdai: true, xbzz: false, xbzzAllowance: false, nodeWallet: false, postageStamp: true }` | Which requirements this dApp needs; disabled ones drop their step. See [Requirements](#requirements). |
 | `label` | `string` | auto | Overrides the button label. Defaults to `Connect to Swarm`, or the truncated address once fully connected. |
+| `gatewayUrl` | `string` | `https://api.gateway.ethswarm.org` | Gateway for `read` while no node is connected; see [Reading content](#reading-content). |
+| `swarm` | `SwarmConnectState` | — | Your app's `useSwarmConnect()` instance. Pass it when the app uses the state too (e.g. `read`), so the button and the app share one state: connecting in the modal then switches the app's reads to the node at once. The other props are ignored when it is set. |
 
 ### `<SwarmConnectModal>`
 
